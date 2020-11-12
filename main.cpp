@@ -9,12 +9,12 @@
 
 int main(int, char **) {
 
-    YAML::Node config = YAML::LoadFile("../config.yaml");
+    YAML::Node config = YAML::LoadFile("./config.yaml");
 
     const std::string host = config["server.host"].as<std::string>();
     int port = config["server.port"].as<std::int32_t>();
 
-    mongols::tcp_proxy_server server(host, port, 5000, 8192, 4);
+    mongols::tcp_proxy_server server(host, port, 5000, 8192, 0);
     server.set_enable_http_lru_cache(false);
     //server.set_http_lru_cache_expires(1);
     server.set_default_http_content();
@@ -68,18 +68,18 @@ int main(int, char **) {
     };
 
 
-    server.run(f, h);
+    //server.run(f, h);
 
-//    std::function<void(pthread_mutex_t *, size_t *)> ff = [&](pthread_mutex_t *mtx, size_t *data) {
-//        server.run(f, h);
-//    };
-//
-//    std::function<bool(int)> g = [&](int status) {
-//        std::cout << strsignal(WTERMSIG(status)) << std::endl;
-//        return false;
-//    };
+    std::function<void(pthread_mutex_t *, size_t *)> ff = [&](pthread_mutex_t *mtx, size_t *data) {
+        server.run(f, h);
+    };
 
-//    mongols::multi_process main_process;
-//    main_process.run(ff, g);
+    std::function<bool(int)> g = [&](int status) {
+        std::cout << strsignal(WTERMSIG(status)) << std::endl;
+        return false;
+    };
+
+    mongols::multi_process main_process;
+    main_process.run(ff, g, std::thread::hardware_concurrency()/2);
 }
 
