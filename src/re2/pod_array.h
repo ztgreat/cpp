@@ -10,45 +10,47 @@
 
 namespace re2 {
 
-template <typename T>
-class PODArray {
- public:
-  static_assert(std::is_trivial<T>::value && std::is_standard_layout<T>::value,
-                "T must be POD");
+    template<typename T>
+    class PODArray {
+    public:
+        static_assert(std::is_trivial<T>::value && std::is_standard_layout<T>::value,
+                      "T must be POD");
 
-  PODArray()
-      : ptr_() {}
-  explicit PODArray(int len)
-      : ptr_(std::allocator<T>().allocate(len), Deleter(len)) {}
+        PODArray()
+                : ptr_() {}
 
-  T* data() const {
-    return ptr_.get();
-  }
+        explicit PODArray(int len)
+                : ptr_(std::allocator<T>().allocate(len), Deleter(len)) {}
 
-  int size() const {
-    return ptr_.get_deleter().len_;
-  }
+        T *data() const {
+            return ptr_.get();
+        }
 
-  T& operator[](int pos) const {
-    return ptr_[pos];
-  }
+        int size() const {
+            return ptr_.get_deleter().len_;
+        }
 
- private:
-  struct Deleter {
-    Deleter()
-        : len_(0) {}
-    explicit Deleter(int len)
-        : len_(len) {}
+        T &operator[](int pos) const {
+            return ptr_[pos];
+        }
 
-    void operator()(T* ptr) const {
-      std::allocator<T>().deallocate(ptr, len_);
-    }
+    private:
+        struct Deleter {
+            Deleter()
+                    : len_(0) {}
 
-    int len_;
-  };
+            explicit Deleter(int len)
+                    : len_(len) {}
 
-  std::unique_ptr<T[], Deleter> ptr_;
-};
+            void operator()(T *ptr) const {
+                std::allocator<T>().deallocate(ptr, len_);
+            }
+
+            int len_;
+        };
+
+        std::unique_ptr<T[], Deleter> ptr_;
+    };
 
 }  // namespace re2
 

@@ -29,6 +29,7 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 #pragma once
+
 #include <algorithm>
 #include <cstdint>
 #include <list>
@@ -66,13 +67,13 @@ namespace lru11 {
         }
     };
 
-    template <typename K, typename V>
+    template<typename K, typename V>
     struct KeyValuePair {
     public:
         K key;
         V value;
 
-        KeyValuePair(const K& k, const V& v) : key(k), value(v) {
+        KeyValuePair(const K &k, const V &v) : key(k), value(v) {
         }
     };
 
@@ -88,9 +89,9 @@ namespace lru11 {
      *Lock=std::mutex will make it
      *	thread-safe
      */
-    template <class Key, class Value, class Lock = NullLock,
-    class Map = std::unordered_map<
-    Key, typename std::list<KeyValuePair<Key, Value> >::iterator> >
+    template<class Key, class Value, class Lock = NullLock,
+            class Map = std::unordered_map<
+                    Key, typename std::list<KeyValuePair<Key, Value> >::iterator> >
     class Cache {
     public:
         typedef KeyValuePair<Key, Value> node_type;
@@ -109,8 +110,9 @@ namespace lru11 {
          * directly anyway! :)
          */
         explicit Cache(size_t maxSize = 64, size_t elasticity = 10)
-        : maxSize_(maxSize), elasticity_(elasticity) {
+                : maxSize_(maxSize), elasticity_(elasticity) {
         }
+
         virtual ~Cache() = default;
 
         size_t size() const {
@@ -129,7 +131,7 @@ namespace lru11 {
             keys_.clear();
         }
 
-        void insert(const Key& k, const Value& v) {
+        void insert(const Key &k, const Value &v) {
             Guard g(lock_);
             const auto iter = cache_.find(k);
             if (iter != cache_.end()) {
@@ -143,7 +145,7 @@ namespace lru11 {
             prune();
         }
 
-        bool tryGet(const Key& kIn, Value& vOut) {
+        bool tryGet(const Key &kIn, Value &vOut) {
             Guard g(lock_);
             const auto iter = cache_.find(kIn);
             if (iter == cache_.end()) {
@@ -153,12 +155,12 @@ namespace lru11 {
             vOut = iter->second->value;
             return true;
         }
-        
+
         /**
          *	The const reference returned here is only
          *    guaranteed to be valid till the next insert/delete
          */
-        const Value& get(const Key& k) {
+        const Value &get(const Key &k) {
             Guard g(lock_);
             const auto iter = cache_.find(k);
             if (iter == cache_.end()) {
@@ -171,11 +173,11 @@ namespace lru11 {
         /**
          * returns a copy of the stored object (if found)
          */
-        Value getCopy(const Key& k) {
+        Value getCopy(const Key &k) {
             return get(k);
         }
 
-        bool remove(const Key& k) {
+        bool remove(const Key &k) {
             Guard g(lock_);
             auto iter = cache_.find(k);
             if (iter == cache_.end()) {
@@ -186,7 +188,7 @@ namespace lru11 {
             return true;
         }
 
-        bool contains(const Key& k) {
+        bool contains(const Key &k) {
             Guard g(lock_);
             return cache_.find(k) != cache_.end();
         }
@@ -203,8 +205,8 @@ namespace lru11 {
             return maxSize_ + elasticity_;
         }
 
-        template <typename F>
-        void cwalk(F& f) const {
+        template<typename F>
+        void cwalk(F &f) const {
             Guard g(lock_);
             std::for_each(keys_.begin(), keys_.end(), f);
         }
@@ -227,8 +229,9 @@ namespace lru11 {
 
     private:
         // Dissallow copying.
-        Cache(const Cache&) = delete;
-        Cache& operator=(const Cache&) = delete;
+        Cache(const Cache &) = delete;
+
+        Cache &operator=(const Cache &) = delete;
 
         mutable Lock lock_;
         Map cache_;

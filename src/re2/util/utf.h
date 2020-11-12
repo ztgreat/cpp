@@ -22,22 +22,25 @@
 
 namespace re2 {
 
-typedef signed int Rune;	/* Code-point values in Unicode 4.0 are 21 bits wide.*/
+    typedef signed int Rune;    /* Code-point values in Unicode 4.0 are 21 bits wide.*/
 
-enum
-{
-  UTFmax	= 4,		/* maximum bytes per rune */
-  Runesync	= 0x80,		/* cannot represent part of a UTF sequence (<) */
-  Runeself	= 0x80,		/* rune and UTF sequences are the same (<) */
-  Runeerror	= 0xFFFD,	/* decoding error in UTF */
-  Runemax	= 0x10FFFF,	/* maximum rune value */
-};
+    enum {
+        UTFmax = 4,        /* maximum bytes per rune */
+        Runesync = 0x80,        /* cannot represent part of a UTF sequence (<) */
+        Runeself = 0x80,        /* rune and UTF sequences are the same (<) */
+        Runeerror = 0xFFFD,    /* decoding error in UTF */
+        Runemax = 0x10FFFF,    /* maximum rune value */
+    };
 
-int runetochar(char* s, const Rune* r);
-int chartorune(Rune* r, const char* s);
-int fullrune(const char* s, int n);
-int utflen(const char* s);
-char* utfrune(const char*, Rune);
+    int runetochar(char *s, const Rune *r);
+
+    int chartorune(Rune *r, const char *s);
+
+    int fullrune(const char *s, int n);
+
+    int utflen(const char *s);
+
+    char *utfrune(const char *, Rune);
 
 }  // namespace re2
 

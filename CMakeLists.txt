@@ -19,6 +19,12 @@ include_directories(src)
 include_directories(src/re2)
 include_directories(src/re2/util)
 
+# yaml-cpp
+include_directories(inc/yaml-cpp)
+include_directories(inc/yaml-cpp/contrib)
+include_directories(inc/yaml-cpp/node)
+include_directories(inc/yaml-cpp/node/detail)
+
 
 aux_source_directory(inc DIR_SRCS)
 aux_source_directory(inc/mongols DIR_SRCS)
@@ -39,3 +45,5 @@ add_executable(${PROJECT_NAME} ${DIR_SRCS})
 
 
 target_link_libraries(${PROJECT_NAME} ${OPENSSL_LIBRARIES})
+
+target_link_libraries(${PROJECT_NAME} ${CMAKE_HOME_DIRECTORY}/libs/libyaml-cppd.a)

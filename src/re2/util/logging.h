@@ -25,13 +25,13 @@
 #define DCHECK_GT(val1, val2) assert((val1) > (val2))
 
 // Always-on checking
-#define CHECK(x)	if(x){}else LogMessageFatal(__FILE__, __LINE__).stream() << "Check failed: " #x
-#define CHECK_LT(x, y)	CHECK((x) < (y))
-#define CHECK_GT(x, y)	CHECK((x) > (y))
-#define CHECK_LE(x, y)	CHECK((x) <= (y))
-#define CHECK_GE(x, y)	CHECK((x) >= (y))
-#define CHECK_EQ(x, y)	CHECK((x) == (y))
-#define CHECK_NE(x, y)	CHECK((x) != (y))
+#define CHECK(x)    if(x){}else LogMessageFatal(__FILE__, __LINE__).stream() << "Check failed: " #x
+#define CHECK_LT(x, y)    CHECK((x) < (y))
+#define CHECK_GT(x, y)    CHECK((x) > (y))
+#define CHECK_LE(x, y)    CHECK((x) <= (y))
+#define CHECK_GE(x, y)    CHECK((x) >= (y))
+#define CHECK_EQ(x, y)    CHECK((x) == (y))
+#define CHECK_NE(x, y)    CHECK((x) != (y))
 
 #define LOG_INFO LogMessage(__FILE__, __LINE__)
 #define LOG_WARNING LogMessage(__FILE__, __LINE__)
@@ -55,31 +55,35 @@
 #define VLOG(x) if((x)>0){}else LOG_INFO.stream()
 
 class LogMessage {
- public:
-  LogMessage(const char* file, int line)
-      : flushed_(false) {
-    stream() << file << ":" << line << ": ";
-  }
-  void Flush() {
-    stream() << "\n";
-    std::string s = str_.str();
-    size_t n = s.size();
-    if (fwrite(s.data(), 1, n, stderr) < n) {}  // shut up gcc
-    flushed_ = true;
-  }
-  ~LogMessage() {
-    if (!flushed_) {
-      Flush();
+public:
+    LogMessage(const char *file, int line)
+            : flushed_(false) {
+        stream() << file << ":" << line << ": ";
     }
-  }
-  std::ostream& stream() { return str_; }
 
- private:
-  bool flushed_;
-  std::ostringstream str_;
+    void Flush() {
+        stream() << "\n";
+        std::string s = str_.str();
+        size_t n = s.size();
+        if (fwrite(s.data(), 1, n, stderr) < n) {}  // shut up gcc
+        flushed_ = true;
+    }
 
-  LogMessage(const LogMessage&) = delete;
-  LogMessage& operator=(const LogMessage&) = delete;
+    ~LogMessage() {
+        if (!flushed_) {
+            Flush();
+        }
+    }
+
+    std::ostream &stream() { return str_; }
+
+private:
+    bool flushed_;
+    std::ostringstream str_;
+
+    LogMessage(const LogMessage &) = delete;
+
+    LogMessage &operator=(const LogMessage &) = delete;
 };
 
 // Silence "destructor never returns" warning for ~LogMessageFatal().
@@ -90,16 +94,19 @@ class LogMessage {
 #endif
 
 class LogMessageFatal : public LogMessage {
- public:
-  LogMessageFatal(const char* file, int line)
-      : LogMessage(file, line) {}
-  ATTRIBUTE_NORETURN ~LogMessageFatal() {
-    Flush();
-    abort();
-  }
- private:
-  LogMessageFatal(const LogMessageFatal&) = delete;
-  LogMessageFatal& operator=(const LogMessageFatal&) = delete;
+public:
+    LogMessageFatal(const char *file, int line)
+            : LogMessage(file, line) {}
+
+    ATTRIBUTE_NORETURN ~LogMessageFatal() {
+        Flush();
+        abort();
+    }
+
+private:
+    LogMessageFatal(const LogMessageFatal &) = delete;
+
+    LogMessageFatal &operator=(const LogMessageFatal &) = delete;
 };
 
 #ifdef _MSC_VER
