@@ -1,15 +1,16 @@
 #include <sys/wait.h>
-#include <sys/signal.h>
+#include <csignal>
 #include "inc/mongols/util.hpp"
 #include "inc/mongols/tcp_proxy_server.hpp"
 #include <cstring>
 #include <iostream>
 #include <functional>
+#include <mongols/path_route_predicate.hpp>
 #include "inc/yaml-cpp/yaml.h"
 
 int main(int, char **) {
 
-    YAML::Node config = YAML::LoadFile("./config.yaml");
+    YAML::Node config = YAML::LoadFile("../config.yaml");
 
     const std::string host = config["server.host"].as<std::string>();
     int port = config["server.port"].as<std::int32_t>();
@@ -50,8 +51,15 @@ int main(int, char **) {
             // predicate
             std::string predicate = node_predicate.as<std::string>();
             std::vector<std::string> temp = mongols::split(predicate, '=');
-            auto path_predicate = new mongols::route_predicate(temp[0], temp[1]);
-            routeLocator->addPredicate(path_predicate);
+
+            if (temp.size() != 2) {
+                continue;
+            }
+            if (std::strcmp(temp[0].c_str(), "path") == 0) {
+                auto path_predicate = new mongols::path_route_predicate("path", temp[1]);
+                routeLocator->addPredicate(path_predicate);
+            }
+
         }
         routeLocator->setLoadBalance(loadBalance);
         server.add_route_locators(*routeLocator);
@@ -68,7 +76,7 @@ int main(int, char **) {
     };
 
 
-    //server.run(f, h);
+    server.run(f, h);
 
     std::function<void(pthread_mutex_t *, size_t *)> ff = [&](pthread_mutex_t *mtx, size_t *data) {
         server.run(f, h);
@@ -79,7 +87,7 @@ int main(int, char **) {
         return false;
     };
 
-    mongols::multi_process main_process;
-    main_process.run(ff, g, std::thread::hardware_concurrency()/2);
+//    mongols::multi_process main_process;
+//    main_process.run(ff, g, std::thread::hardware_concurrency() / 2);
 }
 

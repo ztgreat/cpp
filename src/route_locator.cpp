@@ -13,8 +13,8 @@ namespace mongols {
 
         // todo need optimization
         std::vector<std::string> param;
-        for (auto it = this->route_predicate.begin(); it != this->route_predicate.end(); it++) {
-            if (it->test(request, param)) {
+        for (auto it = this->route_predicate->begin(); it != this->route_predicate->end(); it++) {
+            if ((*it)->match(request, param)) {
                 mongols::upstream_server *up = this->load_balance->choseServer();
                 return up;
             }

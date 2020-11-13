@@ -10,4 +10,4 @@ routes:
       - 127.0.0.1:80
       # 断言，路径相匹配的进行路由
     predicates:
-      - Path=/
+      - path=/
