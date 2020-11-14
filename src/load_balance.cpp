@@ -4,7 +4,7 @@
 namespace mongols {
 
     mongols::upstream_server *load_balance::choseServer() {
-        return &(this->upstream_server_list[0]);
+        return (*this->upstream_server_list)[0];
     }
 }
 

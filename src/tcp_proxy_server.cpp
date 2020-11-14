@@ -19,6 +19,7 @@
 #include "lib/hash/hash_engine.hpp"
 #include "mongols/tcp_proxy_server.hpp"
 #include "mongols/version.hpp"
+#include "mongols/Buffer.h"
 
 namespace mongols {
 
@@ -162,9 +163,12 @@ namespace mongols {
 
     tcp_proxy_server::tcp_proxy_server(const std::string &host, int port, int timeout, size_t buffer_size,
                                        size_t thread_size, int max_event_size)
-            : index(0), backend_size(0), http_lru_cache_size(1024), http_lru_cache_expires(300),
-              enable_http_lru_cache(false), enable_tcp_send_to_other(true), server(0), backend_server(), clients(),
+            : http_lru_cache_size(1024), http_lru_cache_expires(300),
+              enable_http_lru_cache(false), enable_tcp_send_to_other(true), server(0), clients(),
               default_content(tcp_proxy_server::DEFAULT_TCP_CONTENT), http_lru_cache(0) {
+
+        this->route_locators = new std::vector<mongols::route_locator *>();
+
         if (thread_size > 0) {
             this->server = new tcp_threading_server(host, port, timeout, buffer_size, thread_size, max_event_size);
         } else {
@@ -180,6 +184,13 @@ namespace mongols {
         if (this->server) {
             delete this->server;
         }
+
+        for (auto it = this->route_locators->begin(); it != this->route_locators->end(); it++) {
+            delete *it;
+        }
+        this->route_locators->clear();
+        this->route_locators->shrink_to_fit();
+        delete this->route_locators;
     }
 
     void tcp_proxy_server::run(const tcp_server::filter_handler_function &g) {
@@ -206,13 +217,8 @@ namespace mongols {
         this->server->run(ff);
     }
 
-    void tcp_proxy_server::set_backend_server(const std::string &host, int port, bool enable_ssl) {
-        this->backend_server.emplace_back(backend_server_t(host, port, enable_ssl));
-        this->backend_size++;
-    }
-
-    void tcp_proxy_server::add_route_locators(const mongols::route_locator &routeLocator) {
-        this->route_locators.insert(this->route_locators.begin(), routeLocator);
+    void tcp_proxy_server::add_route_locators(mongols::route_locator *routeLocator) {
+        this->route_locators->insert(this->route_locators->begin(), routeLocator);
     }
 
 
@@ -278,12 +284,13 @@ namespace mongols {
             bool is_old = false;
             if (iter == this->clients.end()) {
                 new_client:
-                if (this->index > this->backend_size - 1) {
-                    this->index = 0;
+                for (auto route : *(this->route_locators)) {
+                    mongols::upstream_server *upstreamServer = route->choseServer(nullptr);
+                    if (upstreamServer) {
+                        cli = std::make_shared<tcp_client>(upstreamServer->server, upstreamServer->port, false);
+                        break;
+                    }
                 }
-                std::vector<backend_server_t>::const_reference backend_server_ref = this->backend_server[this->index++];
-                cli = std::make_shared<tcp_client>(backend_server_ref.server, backend_server_ref.port,
-                                                   backend_server_ref.enable_ssl);
                 this->clients[client.sid] = cli;
                 is_old = false;
             } else {
@@ -337,7 +344,7 @@ namespace mongols {
                 } else {
                     keepalive = CLOSE_CONNECTION;
                 }
-                if (this->enable_http_lru_cache) {
+                if (this->enable_http_lru_cache && std::strcmp(req.method.c_str(), "GET") == 0) {
                     std::string tmp_str(req.method);
                     tmp_str.append(req.uri);
                     cache_key = std::make_shared<std::string>(std::move(
@@ -361,13 +368,8 @@ namespace mongols {
             bool is_old = false;
             if (iter == this->clients.end()) {
                 new_client:
-                if (this->index > this->backend_size - 1) {
-                    this->index = 0;
-                }
-                //std::vector<backend_server_t>::const_reference backend_server_ref = this->backend_server[this->index++];
-                //cli = std::make_shared<tcp_client>(backend_server_ref.server, backend_server_ref.port,backend_server_ref.enable_ssl);
-                for (auto &route : this->route_locators) {
-                    mongols::upstream_server *upstreamServer = route.choseServer(req);
+                for (auto route : *(this->route_locators)) {
+                    mongols::upstream_server *upstreamServer = route->choseServer(&req);
                     if (upstreamServer) {
                         cli = std::make_shared<tcp_client>(upstreamServer->server, upstreamServer->port, false);
                         break;
@@ -381,54 +383,45 @@ namespace mongols {
             }
 
             if (cli->ok()) {
-                ssize_t ret = cli->send(input.first, input.second);
-                if (ret > 0) {
-                    char buffer[this->server->get_buffer_size()];
-                    ret = cli->recv(buffer, this->server->get_buffer_size());
-                    if (ret > 0) {
+                ssize_t send_ret = cli->send(input.first, input.second);
+                if (send_ret > 0) {
+                    mongols::net::Buffer buffer(2048);
+                    ssize_t recv_ret = 0;
+                    mongols::response res;
+                    recv_ret = receiveClientData(cli, buffer, res);
+                    if (recv_ret > 0) {
+                        mongols::StringPiece piece = buffer.toStringPiece();
                         output = std::make_shared<std::pair<std::string, time_t>>();
-                        output->first.assign(buffer, ret);
+                        output->first.assign(piece.data(), piece.size());
                         output->second = time(0);
-                        mongols::response res;
-                        mongols::http_response_parser res_parser(res);
-                        if (res_parser.parse(buffer, ret)) {
-                            auto i = res.headers.find("Connection");
-                            if (i == res.headers.end()) {
-                                this->clients.erase(client.sid);
-                                auto p = output->first.find("\n");
-                                if (p != std::string::npos) {
-                                    output->first.insert(p + 1, keepalive == KEEPALIVE_CONNECTION
-                                                                ? "Connection: keep-alive\r\n"
-                                                                : "Connection: close\r\n");
-                                }
-                            } else if (i->second == "close" && keepalive == KEEPALIVE_CONNECTION) {
-                                this->clients.erase(client.sid);
-                                auto p = output->first.find("close");
-                                if (p != std::string::npos) {
-                                    output->first.replace(p, 5, "keep-alive");
-                                }
-
-                            } else if (i->second == "keep-alive" && keepalive == CLOSE_CONNECTION) {
-                                keepalive = KEEPALIVE_CONNECTION;
-                                /*auto p = output->first.find("keep-alive");
-                                    if (p != std::string::npos) {
-                                        output->first.replace(p, 10, "close");
-                                    }*/
+                        auto i = res.headers.find("Connection");
+                        if (i == res.headers.end()) {
+                            this->clients.erase(client.sid);
+                            auto p = output->first.find("\n");
+                            if (p != std::string::npos) {
+                                output->first.insert(p + 1, keepalive == KEEPALIVE_CONNECTION
+                                                            ? "Connection: keep-alive\r\n"
+                                                            : "Connection: close\r\n");
                             }
-                            i = res.headers.find("Server");
-                            if (i == res.headers.end()) {
-                                auto p = output->first.find("\n");
-                                if (p != std::string::npos) {
-                                    output->first.insert(p + 1, std::string("Server: ").append(
-                                            mongols_http_server_version).append("\r\n"));
-                                }
+                        } else if (i->second == "close" && keepalive == KEEPALIVE_CONNECTION) {
+                            this->clients.erase(client.sid);
+                            auto p = output->first.find("close");
+                            if (p != std::string::npos) {
+                                output->first.replace(p, 5, "keep-alive");
                             }
 
-                            if (res.status == 200 && this->enable_http_lru_cache) {
-                                this->http_lru_cache->insert(*cache_key, output);
-                            }
+                        } else if (i->second == "keep-alive" && keepalive == CLOSE_CONNECTION) {
+                            keepalive = KEEPALIVE_CONNECTION;
+                            /*auto p = output->first.find("keep-alive");
+                                if (p != std::string::npos) {
+                                    output->first.replace(p, 10, "close");
+                                }*/
                         }
 
+                        if (res.status == 200 && this->enable_http_lru_cache &&
+                            std::strcmp(req.method.c_str(), "GET") == 0) {
+                            this->http_lru_cache->insert(*cache_key, output);
+                        }
                         return output->first;
                     }
                 }
@@ -446,13 +439,28 @@ namespace mongols {
         this->default_content = tcp_proxy_server::DEFAULT_HTTP_CONTENT;
     }
 
-    void tcp_proxy_server::set_shutdown(const tcp_server::shutdown_function &f) {
-        this->server->set_shutdown(f);
+    size_t tcp_proxy_server::receiveClientData(const std::shared_ptr<tcp_client> &cli, mongols::net::Buffer &buffer,
+                                               mongols::response &res) {
+
+        size_t ret = 0;
+        char temp[this->server->get_buffer_size()];
+        mongols::http_response_parser res_parser(res);
+        again:
+        size_t recv_ret = cli->recv(temp, this->server->get_buffer_size());
+        if (recv_ret > 0) {
+            ret += recv_ret;
+            buffer.append(temp, recv_ret);
+            mongols::StringPiece piece = buffer.toStringPiece();
+            res_parser.parse(piece.data(), piece.size());
+            if (!res_parser.message_complete()) {
+                goto again;
+            }
+        }
+        return ret;
     }
 
-    tcp_proxy_server::backend_server_t::backend_server_t(const std::string &server, int port, bool b) {
-        this->server = server;
-        this->port = port;
-        this->enable_ssl = b;
+
+    void tcp_proxy_server::set_shutdown(const tcp_server::shutdown_function &f) {
+        this->server->set_shutdown(f);
     }
 }

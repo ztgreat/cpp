@@ -36,7 +36,7 @@ namespace mongols {
             this->load_balance = loadBalance;
         }
 
-        virtual upstream_server *choseServer(const mongols::request &);
+        virtual upstream_server *choseServer(const mongols::request *);
     };
 
 }

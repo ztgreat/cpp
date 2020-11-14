@@ -9,12 +9,18 @@
 
 namespace mongols {
 
-    mongols::upstream_server *mongols::route_locator::choseServer(const mongols::request &request) {
+    mongols::upstream_server *mongols::route_locator::choseServer(const mongols::request *request) {
 
+        // tcp
+        if (request == nullptr) {
+            return this->load_balance->choseServer();
+        }
+
+        // http
         // todo need optimization
         std::vector<std::string> param;
         for (auto it = this->route_predicate->begin(); it != this->route_predicate->end(); it++) {
-            if ((*it)->match(request, param)) {
+            if ((*it)->match(*request, param)) {
                 mongols::upstream_server *up = this->load_balance->choseServer();
                 return up;
             }

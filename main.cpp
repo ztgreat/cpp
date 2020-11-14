@@ -19,7 +19,6 @@ int main(int, char **) {
     server.set_enable_http_lru_cache(false);
     //server.set_http_lru_cache_expires(1);
     server.set_default_http_content();
-    server.set_backend_server(host, 9090);
 
     const YAML::Node &routes = config["routes"];
     for (auto it = routes.begin(); it != routes.end(); ++it) {
@@ -62,7 +61,7 @@ int main(int, char **) {
 
         }
         routeLocator->setLoadBalance(loadBalance);
-        server.add_route_locators(*routeLocator);
+        server.add_route_locators(routeLocator);
     }
 
 

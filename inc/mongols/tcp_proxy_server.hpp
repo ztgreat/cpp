@@ -13,10 +13,12 @@
 #include <vector>
 
 #include "lib/LRUCache11.hpp"
-#include "request.hpp"
-#include "tcp_server.hpp"
-#include "tcp_threading_server.hpp"
-#include "route_locator.hpp"
+#include "mongols/request.hpp"
+#include "mongols/response.hpp"
+#include "mongols/tcp_server.hpp"
+#include "mongols/tcp_threading_server.hpp"
+#include "mongols/route_locator.hpp"
+#include "mongols/Buffer.h"
 
 
 namespace mongols {
@@ -74,13 +76,13 @@ namespace mongols {
 
         void run(const tcp_server::filter_handler_function &, const std::function<bool(const mongols::request &)> &);
 
-        void set_backend_server(const std::string &, int, bool = false);
-
         void set_default_content(const std::string &);
 
         void set_enable_tcp_send_to_other(bool);
 
         void set_default_http_content();
+
+        size_t receiveClientData(const std::shared_ptr<tcp_client> &, mongols::net::Buffer &, mongols::response &res);
 
         void set_enable_http_lru_cache(bool);
 
@@ -105,30 +107,14 @@ namespace mongols {
 
         void set_shutdown(const tcp_server::shutdown_function &);
 
-        void add_route_locators(const mongols::route_locator &);
+        void add_route_locators(mongols::route_locator *);
 
     private:
-        class backend_server_t {
-        public:
-            backend_server_t() = delete;
-
-            backend_server_t(const std::string &, int port, bool);
-
-            virtual ~backend_server_t() = default;
-
-        public:
-            std::string server;
-            int port;
-            bool enable_ssl;
-        };
-
-    private:
-        size_t index, backend_size, http_lru_cache_size;
+        size_t http_lru_cache_size;
         long long http_lru_cache_expires;
         bool enable_http_lru_cache, enable_tcp_send_to_other;
         tcp_server *server;
-        std::vector<backend_server_t> backend_server;
-        std::vector<route_locator> route_locators;
+        std::vector<route_locator*> *route_locators;
         std::unordered_map<size_t, std::shared_ptr<tcp_client>> clients;
         std::string default_content;
         lru11::Cache<std::string, std::shared_ptr<std::pair<std::string, time_t>>> *http_lru_cache;

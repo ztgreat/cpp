@@ -7,6 +7,7 @@ namespace mongols {
     }
 
     int http_response_parser::on_message_complete(http_parser *p) {
+        p->message_complete = 1;
         return 0;
     }
 
@@ -38,6 +39,7 @@ namespace mongols {
     }
 
     int http_response_parser::on_headers_complete(http_parser *p) {
+        p->header_complete = 1;
         return 0;
     }
 
@@ -86,6 +88,10 @@ namespace mongols {
 
     bool http_response_parser::parse(const char *str, size_t len) {
         return http_parser_execute(&this->parser, &this->settings, str, len) == len;
+    }
+
+    bool http_response_parser::message_complete() {
+        return this->parser.message_complete == 1;
     }
 
     const std::string &http_response_parser::get_body() const {

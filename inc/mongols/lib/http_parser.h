@@ -326,6 +326,10 @@ struct http_parser {
 
     /** PUBLIC **/
     void *data; /* A pointer to get hook to the "connection" or "socket" object */
+
+    unsigned int message_complete;
+
+    unsigned int header_complete;
 };
 
 
