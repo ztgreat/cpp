@@ -25,7 +25,7 @@ namespace mongols {
 
     class tcp_client {
     public:
-        tcp_client(const std::string &host = "127.0.0.1", int port = 8080, bool enable_openssl = false);
+        tcp_client(const std::string &host = "127.0.0.1", int port = 8080);
 
         virtual ~tcp_client();
 
@@ -43,24 +43,6 @@ namespace mongols {
         int port, socket_fd;
         struct sockaddr_in server_addr;
         struct hostent *server;
-        bool enable_openssl;
-        SSL *ssl;
-
-    private:
-        class ctx_t {
-        public:
-            ctx_t();
-
-            virtual ~ctx_t();
-
-            SSL_CTX *get();
-
-        private:
-            SSL_CTX *ctx;
-        };
-
-        static ctx_t ctx;
-        static const int ssl_session_ctx_id;
     };
 
     class tcp_proxy_server {
@@ -90,9 +72,6 @@ namespace mongols {
 
         void set_http_lru_cache_expires(long long);
 
-        bool set_openssl(const std::string &, const std::string &, openssl::version_t = openssl::version_t::TLSv12,
-                         const std::string &ciphers = openssl::ciphers, long flags = openssl::flags);
-
         void set_enable_blacklist(bool);
 
         void set_enable_whitelist(bool);
@@ -103,8 +82,6 @@ namespace mongols {
 
         void set_whitelist_file(const std::string &);
 
-        void set_enable_security_check(bool);
-
         void set_shutdown(const tcp_server::shutdown_function &);
 
         void add_route_locators(mongols::route_locator *);
@@ -114,7 +91,7 @@ namespace mongols {
         long long http_lru_cache_expires;
         bool enable_http_lru_cache, enable_tcp_send_to_other;
         tcp_server *server;
-        std::vector<route_locator*> *route_locators;
+        std::vector<route_locator *> *route_locators;
         std::unordered_map<size_t, std::shared_ptr<tcp_client>> clients;
         std::string default_content;
         lru11::Cache<std::string, std::shared_ptr<std::pair<std::string, time_t>>> *http_lru_cache;

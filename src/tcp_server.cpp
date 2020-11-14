@@ -1,13 +1,11 @@
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <netinet/in.h>
-#include <netinet/tcp.h>
 #include <sys/epoll.h>
 #include <sys/signal.h>
 #include <sys/socket.h>
-#include <sys/wait.h>
 #include <unistd.h>
-
+#include <limits.h>
 #include <cstdlib>
 #include <cstring>
 
@@ -15,13 +13,9 @@
 #include <atomic>
 #include <fstream>
 #include <functional>
-#include <iostream>
-#include <mutex>
 #include <string>
 #include <thread>
 #include <vector>
-
-#include "openssl.hpp"
 #include "re2/re2.h"
 #include "tcp_server.hpp"
 #include "util.hpp"
@@ -46,8 +40,8 @@ namespace mongols {
             : host(host), port(port), listenfd(0), max_event_size(max_event_size), server_is_ok(false), server_hints(),
               cleaning_fun(), whitelist_inotify(), server_epoll(0), buffer_size(buffer_size), thread_size(0), sid(0),
               timeout(timeout), sid_queue(), clients(), work_pool(0), blacklist(tcp_server::backlist_size), whitelist(),
-              openssl_manager(), openssl_crt_file(), openssl_key_file(), openssl_is_ok(false), enable_blacklist(false),
-              enable_whitelist(false), enable_security_check(false) {
+              enable_blacklist(false),
+              enable_whitelist(false) {
 
         memset(&this->server_hints, 0, sizeof(this->server_hints));
         this->server_hints.ai_family = AF_UNSPEC;
@@ -114,11 +108,11 @@ namespace mongols {
     }
 
     tcp_server::meta_data_t::meta_data_t()
-            : client(), ssl() {
+            : client() {
     }
 
     tcp_server::meta_data_t::meta_data_t(const std::string &ip, int port, size_t uid, size_t gid)
-            : client(ip, port, uid, gid), ssl() {
+            : client(ip, port, uid, gid) {
     }
 
     tcp_server::black_ip_t::black_ip_t()
@@ -242,12 +236,6 @@ namespace mongols {
             pair.first->second.client.sid = this->sid_queue.front();
             this->sid_queue.pop();
         }
-        if (this->openssl_is_ok) {
-            pair.first->second.ssl = std::make_shared<openssl::ssl>(this->openssl_manager->get_ctx());
-            if (!this->openssl_manager->set_socket_and_accept(pair.first->second.ssl->get_ssl(), fd)) {
-                return false;
-            }
-        }
         return true;
     }
 
@@ -262,8 +250,8 @@ namespace mongols {
     bool tcp_server::send_to_all_client(int fd, const std::string &str, const filter_handler_function &h) {
         for (auto i = this->clients.begin(); i != this->clients.end();) {
             if (i->first != fd && h(i->second.client) &&
-                (this->openssl_is_ok ? this->openssl_manager->write(i->second.ssl->get_ssl(), str) < 0 :
-                 send(i->first, str.c_str(), str.size(), MSG_NOSIGNAL) < 0)) {
+
+                send(i->first, str.c_str(), str.size(), MSG_NOSIGNAL) < 0) {
                 this->del_client(i->first);
             } else {
                 ++i;
@@ -345,79 +333,11 @@ namespace mongols {
             client.u_size = this->clients.size();
             client.count++;
 
-            if (this->enable_security_check && !this->security_check(client)) {
-                goto ev_error;
-            }
-
             std::string output = std::move(g(input, keepalive, send_to_all, client, send_to_other_filter));
             if (output.empty()) {
                 return false;
             }
             ret = send(fd, output.c_str(), output.size(), MSG_NOSIGNAL);
-            if (ret > 0) {
-                if (send_to_all) {
-                    this->send_to_all_client(fd, output, send_to_other_filter);
-                }
-            }
-
-            if (ret <= 0 || keepalive == CLOSE_CONNECTION) {
-                goto ev_error;
-            }
-
-        } else {
-
-            ev_error:
-            this->del_client(fd);
-        }
-
-        return false;
-    }
-
-    bool tcp_server::ssl_work(int fd, const handler_function &g) {
-        char buffer[this->buffer_size];
-        ssize_t ret = 0;
-        std::shared_ptr<openssl::ssl> ssl = this->clients[fd].ssl;
-        bool rereaded = false;
-        ev_recv:
-        ret = this->openssl_manager->read(ssl->get_ssl(), buffer, this->buffer_size);
-        if (ret < 0) {
-            int err = SSL_get_error(ssl->get_ssl(), ret);
-            if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE) {
-                return false;
-            } else if (err == SSL_ERROR_SYSCALL) {
-                if (errno == EINTR) {
-                    if (!rereaded) {
-                        rereaded = true;
-                        goto ev_recv;
-                    }
-                } else if (errno == EAGAIN) {
-                    return false;
-                }
-            }
-            goto ev_error;
-
-        } else if (ret > 0) {
-            std::pair<char *, size_t> input;
-            input.first = &buffer[0];
-            input.second = ret;
-            filter_handler_function send_to_other_filter = [](const client_t &) {
-                return true;
-            };
-
-            bool keepalive = CLOSE_CONNECTION, send_to_all = false;
-            client_t &client = this->clients[fd].client;
-            client.u_size = this->clients.size();
-            client.count++;
-
-            if (this->enable_security_check && !this->security_check(client)) {
-                goto ev_error;
-            }
-
-            std::string output = std::move(g(input, keepalive, send_to_all, client, send_to_other_filter));
-            if (output.empty()) {
-                return false;
-            }
-            ret = this->openssl_manager->write(ssl->get_ssl(), output);
             if (ret > 0) {
                 if (send_to_all) {
                     this->send_to_all_client(fd, output, send_to_other_filter);
@@ -470,8 +390,6 @@ namespace mongols {
         } else if (event->events & EPOLLIN) {
             if (this->whitelist_inotify && event->data.fd == this->whitelist_inotify->get_fd()) {
                 this->whitelist_inotify->run();
-            } else if (this->openssl_is_ok) {
-                this->ssl_work(event->data.fd, g);
             } else {
                 this->work(event->data.fd, g);
             }
@@ -505,22 +423,9 @@ namespace mongols {
         return false;
     }
 
-    bool tcp_server::set_openssl(const std::string &crt_file, const std::string &key_file, openssl::version_t v,
-                                 const std::string &ciphers, long flags) {
-        this->openssl_crt_file = crt_file;
-        this->openssl_key_file = key_file;
-        this->openssl_manager = std::move(
-                std::make_shared<mongols::openssl>(this->openssl_crt_file, this->openssl_key_file, v, ciphers, flags));
-        this->openssl_is_ok = this->openssl_manager && this->openssl_manager->is_ok();
-        return this->openssl_is_ok;
-    }
 
     void tcp_server::set_enable_blacklist(bool b) {
         this->enable_blacklist = b;
-    }
-
-    void tcp_server::set_enable_security_check(bool b) {
-        this->enable_security_check = b;
     }
 
     void tcp_server::set_enable_whitelist(bool b) {

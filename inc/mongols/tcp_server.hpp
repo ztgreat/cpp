@@ -19,7 +19,6 @@
 #include "epoll.hpp"
 #include "inotify.hpp"
 #include "lib/LRUCache11.hpp"
-#include "openssl.hpp"
 #include "thread_pool.hpp"
 
 #define CLOSE_CONNECTION true
@@ -73,9 +72,6 @@ namespace mongols {
 
         size_t get_buffer_size() const;
 
-        bool set_openssl(const std::string &, const std::string &, openssl::version_t v = openssl::version_t::TLSv12,
-                         const std::string &ciphers = openssl::ciphers, long flags = openssl::flags);
-
         void set_enable_blacklist(bool);
 
         void set_enable_security_check(bool);
@@ -126,7 +122,6 @@ namespace mongols {
 
         public:
             client_t client;
-            std::shared_ptr<openssl::ssl> ssl;
         };
 
         class black_ip_t {
@@ -150,9 +145,7 @@ namespace mongols {
         lru11::Cache<std::string, std::shared_ptr<black_ip_t>> blacklist;
         std::list<std::string> whitelist;
 
-        std::shared_ptr<mongols::openssl> openssl_manager;
-        std::string openssl_crt_file, openssl_key_file;
-        bool openssl_is_ok, enable_blacklist, enable_whitelist, enable_security_check;
+        bool enable_blacklist, enable_whitelist;
 
         virtual bool add_client(int, const std::string &, int);
 
@@ -161,8 +154,6 @@ namespace mongols {
         virtual bool send_to_all_client(int, const std::string &, const filter_handler_function &);
 
         virtual bool work(int, const handler_function &);
-
-        virtual bool ssl_work(int, const handler_function &);
 
         virtual bool check_blacklist(const std::string &);
 

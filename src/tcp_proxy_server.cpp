@@ -1,91 +1,29 @@
-#include <fcntl.h>
 #include <netdb.h>
 #include <netinet/in.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
-#include <sys/prctl.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
 
 #include <functional>
-#include <iostream>
 #include <mongols/util.hpp>
 #include <mongols/upstream_server.hpp>
+#include <cstring>
 
 #include "mongols/http_request_parser.hpp"
 #include "mongols/http_response_parser.hpp"
-#include "lib/hash/hash_engine.hpp"
 #include "mongols/tcp_proxy_server.hpp"
-#include "mongols/version.hpp"
 #include "mongols/Buffer.h"
+#include "mongols/MD5.h"
 
 namespace mongols {
 
-    tcp_client::ctx_t tcp_client::ctx;
-    const int tcp_client::ssl_session_ctx_id = 1;
-
-    tcp_client::ctx_t::ctx_t()
-            : ctx(0) {
-        SSL_load_error_strings();
-        OpenSSL_add_ssl_algorithms();
-        switch (openssl::version) {
-            case openssl::version_t::SSLv23:
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-                this->ctx = SSL_CTX_new(SSLv23_client_method());
-#else
-                this->ctx = SSL_CTX_new(TLS_client_method());
-#endif
-                break;
-            case openssl::version_t::TLSv12:
-                this->ctx = SSL_CTX_new(TLSv1_2_client_method());
-                break;
-            case openssl::version_t::TLSv13:
-                this->ctx = SSL_CTX_new(TLSv1_2_client_method());
-                break;
-            default:
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-                this->ctx = SSL_CTX_new(TLSv1_2_client_method());
-#else
-                this->ctx = SSL_CTX_new(TLS_client_method());
-#endif
-                break;
-        }
-
-        SSL_CTX_set_ecdh_auto(this->ctx, 1024);
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-        this->ctx->freelist_max_len = 0;
-#endif
-        SSL_CTX_set_mode(this->ctx,
-                         SSL_MODE_RELEASE_BUFFERS | SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER | SSL_MODE_AUTO_RETRY);
-        SSL_CTX_set_options(this->ctx, openssl::flags);
-
-        SSL_CTX_set_session_cache_mode(this->ctx, SSL_SESS_CACHE_CLIENT | SSL_SESS_CACHE_NO_INTERNAL);
-        SSL_CTX_sess_set_cache_size(this->ctx, 1);
-    }
-
-    tcp_client::ctx_t::~ctx_t() {
-        if (this->ctx) {
-            SSL_CTX_free(this->ctx);
-        }
-        EVP_cleanup();
-    }
-
-    SSL_CTX *tcp_client::ctx_t::get() {
-        return this->ctx;
-    }
-
-    tcp_client::tcp_client(const std::string &host, int port, bool enable_openssl)
-            : host(host), port(port), socket_fd(-1), server_addr(), server(0), enable_openssl(enable_openssl), ssl(0) {
+    tcp_client::tcp_client(const std::string &host, int port)
+            : host(host), port(port), socket_fd(-1), server_addr(), server(0) {
         this->init();
     }
 
     tcp_client::~tcp_client() {
-        if (this->ssl) {
-            SSL_shutdown(this->ssl);
-            SSL_free(this->ssl);
-        }
         if (this->socket_fd > 0) {
             shutdown(this->socket_fd, SHUT_RDWR);
             close(this->socket_fd);
@@ -112,22 +50,6 @@ namespace mongols {
             this->socket_fd = -1;
             return;
         }
-        if (this->enable_openssl) {
-            this->ssl = SSL_new(tcp_client::ctx.get());
-            if (this->ssl) {
-                SSL_set_mode(this->ssl, SSL_MODE_RELEASE_BUFFERS | SSL_MODE_ACCEPT_MOVING_WRITE_BUFFER);
-                SSL_set_options(this->ssl, SSL_OP_NO_TICKET);
-                SSL_set_fd(this->ssl, this->socket_fd);
-                int ret = SSL_connect(this->ssl);
-                if (ret <= 0) {
-                    SSL_shutdown(this->ssl);
-                    SSL_free(this->ssl);
-                    this->ssl = 0;
-                    close(this->socket_fd);
-                    this->socket_fd = -1;
-                }
-            }
-        }
     }
 
     bool tcp_client::ok() {
@@ -135,17 +57,11 @@ namespace mongols {
     }
 
     ssize_t tcp_client::recv(char *buffer, size_t len) {
-        if (this->enable_openssl && this->ssl) {
-            return SSL_read(this->ssl, buffer, len);
-        }
+
         return ::read(this->socket_fd, buffer, len);
     }
 
     ssize_t tcp_client::send(const char *str, size_t len) {
-        if (this->enable_openssl && this->ssl) {
-
-            return SSL_write(this->ssl, str, len);
-        }
         return ::send(this->socket_fd, str, len, MSG_NOSIGNAL);
     }
 
@@ -238,11 +154,6 @@ namespace mongols {
         this->http_lru_cache_expires = expires;
     }
 
-    bool tcp_proxy_server::set_openssl(const std::string &crt_file, const std::string &key_file, openssl::version_t v,
-                                       const std::string &ciphers, long flags) {
-        return this->server->set_openssl(crt_file, key_file, v, ciphers, flags);
-    }
-
     void tcp_proxy_server::set_enable_blacklist(bool b) {
         this->server->set_enable_blacklist(b);
     }
@@ -261,10 +172,6 @@ namespace mongols {
 
     void tcp_proxy_server::set_whitelist_file(const std::string &path) {
         this->server->set_whitelist_file(path);
-    }
-
-    void tcp_proxy_server::set_enable_security_check(bool b) {
-        this->server->set_enable_security_check(b);
     }
 
     void tcp_proxy_server::set_enable_tcp_send_to_other(bool b) {
@@ -287,7 +194,7 @@ namespace mongols {
                 for (auto route : *(this->route_locators)) {
                     mongols::upstream_server *upstreamServer = route->choseServer(nullptr);
                     if (upstreamServer) {
-                        cli = std::make_shared<tcp_client>(upstreamServer->server, upstreamServer->port, false);
+                        cli = std::make_shared<tcp_client>(upstreamServer->server, upstreamServer->port);
                         break;
                     }
                 }
@@ -348,7 +255,7 @@ namespace mongols {
                     std::string tmp_str(req.method);
                     tmp_str.append(req.uri);
                     cache_key = std::make_shared<std::string>(std::move(
-                            hash_engine::md5(req.param.empty() ? tmp_str : tmp_str.append("?").append(req.param))));
+                            mongols::md5(req.param.empty() ? tmp_str : tmp_str.append("?").append(req.param))));
                     if (this->http_lru_cache->contains(*cache_key)) {
                         output = this->http_lru_cache->get(*cache_key);
                         if (difftime(time(0), output->second) > this->http_lru_cache_expires) {
@@ -371,7 +278,7 @@ namespace mongols {
                 for (auto route : *(this->route_locators)) {
                     mongols::upstream_server *upstreamServer = route->choseServer(&req);
                     if (upstreamServer) {
-                        cli = std::make_shared<tcp_client>(upstreamServer->server, upstreamServer->port, false);
+                        cli = std::make_shared<tcp_client>(upstreamServer->server, upstreamServer->port);
                         break;
                     }
                 }

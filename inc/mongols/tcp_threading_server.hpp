@@ -29,8 +29,6 @@ namespace mongols {
 
         virtual bool work(int, const handler_function &);
 
-        virtual bool ssl_work(int, const handler_function &);
-
         virtual bool check_blacklist(const std::string &);
 
         virtual bool check_whitelist(const std::string &);

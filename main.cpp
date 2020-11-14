@@ -1,5 +1,4 @@
 #include <sys/wait.h>
-#include <csignal>
 #include "inc/mongols/util.hpp"
 #include "inc/mongols/tcp_proxy_server.hpp"
 #include <cstring>

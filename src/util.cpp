@@ -20,18 +20,11 @@
 #include <thread>
 
 #include "lib/cppcodec/base64_rfc4648.hpp"
-#include "lib/hash/hash_engine.hpp"
 #include "lib/re2/re2.h"
 #include "lib/re2/stringpiece.h"
 #include "util.hpp"
 
 namespace mongols {
-
-    std::string random_string(const std::string &s) {
-        time_t now = time(NULL);
-        char *now_str = ctime(&now);
-        return hash_engine::md5((s + now_str));
-    }
 
     bool read_file(const std::string &path, std::string &out) {
         std::ifstream ifs(path.c_str());

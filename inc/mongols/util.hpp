@@ -16,7 +16,6 @@
 
 namespace mongols {
 
-    std::string random_string(const std::string &s);
 
     bool read_file(const std::string &path, std::string &out);
 
