@@ -64,7 +64,8 @@ namespace mongols {
 
         void set_default_http_content();
 
-        size_t receiveClientData(const std::shared_ptr<tcp_client> &, mongols::net::Buffer &, mongols::response &res);
+        ssize_t
+        receiveUpServerData(const std::shared_ptr<tcp_client> &, mongols::net::Buffer &, mongols::response &res);
 
         void set_enable_http_lru_cache(bool);
 

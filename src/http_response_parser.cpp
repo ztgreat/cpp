@@ -90,15 +90,14 @@ namespace mongols {
         return http_parser_execute(&this->parser, &this->settings, str, len) == len;
     }
 
-    bool http_response_parser::message_complete() {
-        return this->parser.message_complete == 1;
-    }
-
     const std::string &http_response_parser::get_body() const {
         return this->body;
     }
 
     std::string &http_response_parser::get_body() {
         return this->body;
+    }
+    bool http_response_parser::message_complete() {
+        return this->parser.message_complete == 1;
     }
 }

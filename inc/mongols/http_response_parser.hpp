@@ -20,11 +20,11 @@ namespace mongols {
 
         bool parse(const char *, size_t);
 
-        bool message_complete();
-
         const std::string &get_body() const;
 
         std::string &get_body();
+
+        bool message_complete();
 
     private:
         struct tmp_ {

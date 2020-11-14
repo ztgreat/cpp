@@ -28,6 +28,8 @@ namespace mongols {
 
         bool upgrade() const;
 
+        bool message_complete();
+
     private:
         struct tmp_ {
             std::pair<std::string, std::string> pair;

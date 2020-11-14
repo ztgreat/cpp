@@ -8,6 +8,7 @@ namespace mongols {
     }
 
     int http_request_parser::on_message_complete(http_parser *p) {
+        p->message_complete = 1;
         return 0;
     }
 
@@ -40,6 +41,7 @@ namespace mongols {
     }
 
     int http_request_parser::on_headers_complete(http_parser *p) {
+        p->header_complete = 1;
         return 0;
     }
 
@@ -112,5 +114,9 @@ namespace mongols {
 
     bool http_request_parser::upgrade() const {
         return this->parser.upgrade == 1;
+    }
+
+    bool http_request_parser::message_complete() {
+        return this->parser.message_complete == 1;
     }
 }

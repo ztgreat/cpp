@@ -292,10 +292,10 @@ namespace mongols {
             if (cli->ok()) {
                 ssize_t send_ret = cli->send(input.first, input.second);
                 if (send_ret > 0) {
-                    mongols::net::Buffer buffer(2048);
+                    mongols::net::Buffer buffer(this->server->get_buffer_size());
                     ssize_t recv_ret = 0;
                     mongols::response res;
-                    recv_ret = receiveClientData(cli, buffer, res);
+                    recv_ret = receiveUpServerData(cli, buffer, res);
                     if (recv_ret > 0) {
                         mongols::StringPiece piece = buffer.toStringPiece();
                         output = std::make_shared<std::pair<std::string, time_t>>();
@@ -346,24 +346,33 @@ namespace mongols {
         this->default_content = tcp_proxy_server::DEFAULT_HTTP_CONTENT;
     }
 
-    size_t tcp_proxy_server::receiveClientData(const std::shared_ptr<tcp_client> &cli, mongols::net::Buffer &buffer,
-                                               mongols::response &res) {
+    ssize_t tcp_proxy_server::receiveUpServerData(const std::shared_ptr<tcp_client> &cli, mongols::net::Buffer &buffer,
+                                                  mongols::response &res) {
 
-        size_t ret = 0;
+        ssize_t ret = 0;
+        ssize_t recv_ret = 0;
         char temp[this->server->get_buffer_size()];
         mongols::http_response_parser res_parser(res);
         again:
-        size_t recv_ret = cli->recv(temp, this->server->get_buffer_size());
+        recv_ret = cli->recv(temp, this->server->get_buffer_size());
         if (recv_ret > 0) {
-            ret += recv_ret;
             buffer.append(temp, recv_ret);
             mongols::StringPiece piece = buffer.toStringPiece();
-            res_parser.parse(piece.data(), piece.size());
+            bool result = res_parser.parse(piece.data() + ret, recv_ret);
+            ret += recv_ret;
+
+            if (!result) {
+                ret = 0;
+                buffer.shrink();
+                return ret;
+            }
+
             if (!res_parser.message_complete()) {
                 goto again;
             }
+            return ret;
         }
-        return ret;
+        return recv_ret;
     }
 
 

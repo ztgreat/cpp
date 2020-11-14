@@ -16,6 +16,9 @@
 #include <string>
 #include <thread>
 #include <vector>
+#include <mongols/Buffer.h>
+#include <mongols/request.hpp>
+#include <mongols/http_request_parser.hpp>
 #include "re2/re2.h"
 #include "tcp_server.hpp"
 #include "util.hpp"
@@ -294,27 +297,55 @@ namespace mongols {
         }) != this->whitelist.end();
     }
 
-    bool tcp_server::security_check(const tcp_server::client_t &client) {
-        time_t now = time(0);
-        double diff = difftime(now, client.t);
-        if (diff > tcp_server::max_connection_keepalive || (diff == 0 && client.count > tcp_server::max_send_limit)
-            || (diff > 0 && client.count / diff > tcp_server::max_send_limit)) {
-            return false;
+
+    ssize_t tcp_server::receiveClientData(int fd, mongols::net::Buffer &buffer,
+                                          mongols::request &req) {
+
+        size_t ret = 0;
+        ssize_t recv_ret = 0;
+        bool repeatable = true;
+        char temp[this->buffer_size];
+        mongols::http_request_parser req_parser(req);
+        again:
+        recv_ret = recv(fd, temp, this->buffer_size, MSG_WAITALL);
+        if (recv_ret < 0) {
+            if (errno == EINTR) {
+                if (repeatable) {
+                    repeatable = false;
+                    goto again;
+                }
+                return recv_ret;
+            } else if (errno == EAGAIN) {
+                return recv_ret;
+            } else {
+                return recv_ret;
+            }
+        } else if (recv_ret > 0) {
+            buffer.append(temp, recv_ret);
+            mongols::StringPiece piece = buffer.toStringPiece();
+            bool success = req_parser.parse(piece.data() + ret, recv_ret);
+            ret += recv_ret;
+            if (!success) {
+                ret = 0;
+                buffer.shrink();
+                return ret;
+            }
+            if (!req_parser.message_complete()) {
+                goto again;
+            }
+            return ret;
+        } else {
+            return recv_ret;
         }
-        return true;
     }
 
     bool tcp_server::work(int fd, const handler_function &g) {
-        char buffer[this->buffer_size];
-        bool rereaded = false;
-        ev_recv:
-        ssize_t ret = recv(fd, buffer, this->buffer_size, MSG_WAITALL);
+        mongols::net::Buffer buffer(this->buffer_size);
+        mongols::request req;
+        ssize_t ret = receiveClientData(fd, buffer, req);
         if (ret < 0) {
             if (errno == EINTR) {
-                if (!rereaded) {
-                    rereaded = true;
-                    goto ev_recv;
-                }
+                return false;
             } else if (errno == EAGAIN) {
                 return false;
             }
@@ -322,8 +353,9 @@ namespace mongols {
 
         } else if (ret > 0) {
             std::pair<char *, size_t> input;
-            input.first = &buffer[0];
-            input.second = ret;
+            StringPiece stringPiece = buffer.toStringPiece().data();
+            input.first = const_cast<char *>(stringPiece.data());
+            input.second = stringPiece.size();
             filter_handler_function send_to_other_filter = [](const client_t &) {
                 return true;
             };
@@ -338,11 +370,6 @@ namespace mongols {
                 return false;
             }
             ret = send(fd, output.c_str(), output.size(), MSG_NOSIGNAL);
-            if (ret > 0) {
-                if (send_to_all) {
-                    this->send_to_all_client(fd, output, send_to_other_filter);
-                }
-            }
 
             if (ret <= 0 || keepalive == CLOSE_CONNECTION) {
                 goto ev_error;

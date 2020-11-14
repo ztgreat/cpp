@@ -20,6 +20,8 @@
 #include "inotify.hpp"
 #include "lib/LRUCache11.hpp"
 #include "thread_pool.hpp"
+#include "mongols/Buffer.h"
+#include "mongols/request.hpp"
 
 #define CLOSE_CONNECTION true
 #define KEEPALIVE_CONNECTION false
@@ -53,7 +55,8 @@ namespace mongols {
         typedef std::function<void(int)> setsockopt_function;
         typedef std::function<bool(const client_t &)> filter_handler_function;
         typedef std::function<std::string(
-                const std::pair<char *, size_t> &, bool &, bool &, client_t &, filter_handler_function &)>
+                const std::pair<char *, size_t> &, bool &, bool &, client_t &,
+                filter_handler_function &)>
                 handler_function;
         typedef std::function<void(void)> shutdown_function;
 
@@ -161,7 +164,8 @@ namespace mongols {
 
         virtual bool read_whitelist_file(const std::string &);
 
-        virtual bool security_check(const tcp_server::client_t &);
+        ssize_t receiveClientData(int fd, mongols::net::Buffer &buffer,
+                                  mongols::request &req);
     };
 }
 
