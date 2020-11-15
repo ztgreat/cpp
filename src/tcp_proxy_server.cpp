@@ -291,6 +291,9 @@ namespace mongols {
     void tcp_proxy_server::del_up_server(size_t &client_sid) {
 
         std::shared_ptr<tcp_client> cli = this->clients[client_sid];
+        if (cli == nullptr) {
+            return;
+        }
         this->server->del_client(cli->socket_fd);
         this->clients.erase(client_sid);
         shutdown(cli->socket_fd, SHUT_RDWR);
