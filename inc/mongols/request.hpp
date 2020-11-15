@@ -14,6 +14,20 @@ namespace mongols {
 
         virtual ~request() = default;
 
+        void clean() {
+            this->client.clear();
+            this->user_agent.clear();
+            this->method.clear();
+            this->uri.clear();
+            this->param.clear();
+
+            this->headers.clear();
+            this->form.clear();
+            this->cookies.clear();
+            this->session.clear();
+            this->cache.clear();
+        }
+
         std::string client, user_agent, method, uri, param;
         std::unordered_map<std::string, std::string> headers, form, cookies, session, cache;
     };

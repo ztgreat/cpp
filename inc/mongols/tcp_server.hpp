@@ -125,6 +125,8 @@ namespace mongols {
 
         public:
             client_t client;
+            mongols::net::Buffer buffer;
+            mongols::request req;
         };
 
         class black_ip_t {
