@@ -50,12 +50,14 @@ namespace mongols {
     }
 
     bool tcp_threading_server::add_client(int fd, const std::string &ip, int port, bool is_up_server = false,
-                                          size_t client_sid = -1, int client_socket_fd = -1) {
+                                          size_t client_sid = -1,
+                                          std::shared_ptr<std::string> client_request_id = nullptr,
+                                          int client_socket_fd = -1) {
         std::lock_guard<std::mutex> lk(this->main_mtx);
         this->server_epoll->add(fd, EPOLLIN | EPOLLRDHUP | EPOLLET);
         auto pair = this->clients.insert(
                 std::move(std::make_pair(fd, std::move(
-                        meta_data_t(ip, port, 0, 0, is_up_server, client_sid, client_socket_fd)))));
+                        meta_data_t(ip, port, 0, 0, is_up_server, client_sid,client_request_id, client_socket_fd)))));
         if (this->sid_queue.empty()) {
             pair.first->second.client.sid = ++this->sid;
         } else {

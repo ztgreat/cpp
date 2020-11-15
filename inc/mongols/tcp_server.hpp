@@ -41,7 +41,8 @@ namespace mongols {
         public:
             client_t();
 
-            client_t(const std::string &ip, int port, size_t uid, size_t gid, bool, size_t, int);
+            client_t(const std::string &ip, int port, size_t uid, size_t gid, bool, size_t client_sid,
+                     std::shared_ptr<std::string>, int);
 
             virtual ~client_t() = default;
 
@@ -58,8 +59,9 @@ namespace mongols {
 
             // only for up_server
             bool is_up_server;
-            size_t client_sid;
+            std::shared_ptr<std::string> client_request_id;
             int client_socket_fd;
+            size_t client_sid;
         };
 
         typedef std::function<void(int)> setsockopt_function;
@@ -81,7 +83,9 @@ namespace mongols {
         virtual ~tcp_server();
 
     public:
-        virtual bool add_client(int, const std::string &, int, bool, size_t, int);
+        virtual bool
+        add_client(int, const std::string &, int, bool, size_t client_sid,
+                   std::shared_ptr<std::string> client_request_id, int client_socket_fd);
 
         virtual void del_client(int);
 
@@ -134,7 +138,9 @@ namespace mongols {
         public:
             meta_data_t();
 
-            meta_data_t(const std::string &ip, int port, size_t uid, size_t gid, bool, size_t, int);
+            meta_data_t(const std::string &ip, int port, size_t uid, size_t gid, bool, size_t client_sid,
+                        std::shared_ptr<std::string>,
+                        int);
 
             virtual ~meta_data_t() = default;
 

@@ -21,7 +21,10 @@ namespace mongols {
         virtual void del_whitelist(const std::string &);
 
     private:
-        virtual bool add_client(int, const std::string &, int, bool, size_t, int);
+        virtual bool
+        add_client(int, const std::string &, int, bool, size_t client_sid,
+                   std::shared_ptr<std::string> client_request_id,
+                   int);
 
         virtual void del_client(int);
 

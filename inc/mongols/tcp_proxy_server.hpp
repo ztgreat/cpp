@@ -90,7 +90,7 @@ namespace mongols {
         bool enable_http_lru_cache, enable_tcp_send_to_other;
         tcp_server *server;
         std::vector<route_locator *> *route_locators;
-        std::unordered_map<size_t, std::shared_ptr<tcp_client>> clients;
+        std::unordered_map<std::string, std::shared_ptr<tcp_client>> clients;
         std::string default_content;
         lru11::Cache<std::string, std::shared_ptr<std::pair<std::string, time_t>>> *http_lru_cache;
 
@@ -98,7 +98,7 @@ namespace mongols {
                          tcp_server::client_t &, tcp_server::filter_handler_function &);
 
 
-        void del_up_server(size_t &client_sid);
+        void del_up_server(std::shared_ptr<std::string> client_request_id);
 
         void cleanHttpContext(int &fd);
 

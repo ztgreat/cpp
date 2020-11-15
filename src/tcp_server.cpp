@@ -104,10 +104,12 @@ namespace mongols {
         this->gid.push_back(0);
     }
 
-    tcp_server::client_t::client_t(const std::string &ip, int port, size_t uid, size_t gid, bool is_up_server,
-                                   size_t client_sid, int client_socket_fd)
+    tcp_server::client_t::client_t(const std::string &ip, int port, size_t uid, size_t gid,
+                                   bool is_up_server, size_t client_sid, std::shared_ptr<std::string> client_request_id,
+                                   int client_socket_fd)
             : type(tcp_server::connection_t::TCP), ip(ip), port(port), t(time(0)), sid(0), uid(uid), u_size(0),
-              count(0), gid(), is_up_server(is_up_server), client_sid(client_sid), client_socket_fd(client_socket_fd) {
+              count(0), gid(), is_up_server(is_up_server), client_sid(client_sid), client_request_id(client_request_id),
+              client_socket_fd(client_socket_fd) {
         this->gid.push_back(gid);
     }
 
@@ -116,8 +118,9 @@ namespace mongols {
     }
 
     tcp_server::meta_data_t::meta_data_t(const std::string &ip, int port, size_t uid, size_t gid, bool is_up_server,
-                                         size_t client_sid, int client_socket_fd)
-            : client(ip, port, uid, gid, is_up_server, client_sid, client_socket_fd) {
+                                         size_t client_sid,
+                                         std::shared_ptr<std::string> client_request_id, int client_socket_fd)
+            : client(ip, port, uid, gid, is_up_server, client_sid, client_request_id, client_socket_fd) {
     }
 
     tcp_server::black_ip_t::black_ip_t()
@@ -233,12 +236,14 @@ namespace mongols {
     }
 
     bool
-    tcp_server::add_client(int fd, const std::string &ip, int port, bool is_up_server = false, size_t client_sid = -1,
+    tcp_server::add_client(int fd, const std::string &ip, int port, bool is_up_server = false,
+                           size_t client_sid = -1,
+                           std::shared_ptr<std::string> client_request_id = nullptr,
                            int client_socket_fd = -1) {
         this->server_epoll->add(fd, EPOLLIN | EPOLLRDHUP | EPOLLET);
         auto pair = this->clients.insert(
                 std::move(std::make_pair(fd, std::move(
-                        meta_data_t(ip, port, 0, 0, is_up_server, client_sid, client_socket_fd)))));
+                        meta_data_t(ip, port, 0, 0, is_up_server, client_sid, client_request_id, client_socket_fd)))));
         if (this->sid_queue.empty()) {
             // todo 溢出风险
             pair.first->second.client.sid = ++this->sid;
