@@ -4,7 +4,7 @@
 #include <functional>
 #include <sys/epoll.h>
 
-namespace mongols {
+namespace motoro {
 
     class epoll {
     public:

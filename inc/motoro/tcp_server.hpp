@@ -20,14 +20,14 @@
 #include "inotify.hpp"
 #include "lib/LRUCache11.hpp"
 #include "thread_pool.hpp"
-#include "mongols/Buffer.h"
-#include "mongols/request.hpp"
+#include "motoro/Buffer.h"
+#include "motoro/request.hpp"
 #include "response.hpp"
 
 #define CLOSE_CONNECTION true
 #define KEEPALIVE_CONNECTION false
 
-namespace mongols {
+namespace motoro {
 
     class tcp_server {
     public:
@@ -53,9 +53,9 @@ namespace mongols {
             time_t t;
             size_t sid, uid, u_size, count;
             std::list<size_t> gid;
-            mongols::net::Buffer buffer;
-            mongols::request req;
-            mongols::response res;
+            motoro::net::Buffer buffer;
+            motoro::request req;
+            motoro::response res;
 
             // only for up_server
             bool is_up_server;
@@ -129,7 +129,7 @@ namespace mongols {
         static void signal_normal_cb(int sig, siginfo_t *, void *);
 
 
-        void main_loop(struct epoll_event *, const handler_function &, mongols::epoll &);
+        void main_loop(struct epoll_event *, const handler_function &, motoro::epoll &);
 
         bool get_client_address(struct sockaddr_storage *, std::string &, int &);
 
@@ -159,12 +159,12 @@ namespace mongols {
             bool disallow;
         };
 
-        mongols::epoll *server_epoll;
+        motoro::epoll *server_epoll;
         size_t buffer_size, thread_size, sid;
         int timeout;
         std::queue<size_t, std::list<size_t>> sid_queue;
         std::unordered_map<int, meta_data_t> clients;
-        mongols::thread_pool<std::function<bool()>> *work_pool;
+        motoro::thread_pool<std::function<bool()>> *work_pool;
 
         lru11::Cache<std::string, std::shared_ptr<black_ip_t>> blacklist;
         std::list<std::string> whitelist;

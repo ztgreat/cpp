@@ -6,7 +6,7 @@
 #include <mutex>
 #include <queue>
 
-namespace mongols {
+namespace motoro {
 
     template<typename T>
     class safe_queue {

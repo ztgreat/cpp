@@ -1,7 +1,7 @@
 #include "inotify.hpp"
 #include <iostream>
 
-namespace mongols {
+namespace motoro {
 
     size_t inotify::buffer_size = (1024 * ((sizeof(struct inotify_event)) + 16));
 

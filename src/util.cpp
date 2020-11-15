@@ -24,7 +24,7 @@
 #include "lib/re2/stringpiece.h"
 #include "util.hpp"
 
-namespace mongols {
+namespace motoro {
 
     bool read_file(const std::string &path, std::string &out) {
         std::ifstream ifs(path.c_str());
@@ -681,17 +681,17 @@ namespace mongols {
             prctl(PR_SET_NAME, std::to_string(getppid()).append(":worker").c_str());
             f(this->mtx, this->data);
         };
-        mongols::forker((process_size > 0 ? process_size : std::thread::hardware_concurrency()), process_work,
+        motoro::forker((process_size > 0 ? process_size : std::thread::hardware_concurrency()), process_work,
                         multi_process::pids);
         multi_process::set_signal();
         for (size_t i = 0; i < multi_process::pids.size(); ++i) {
-            if (mongols::process_bind_cpu(multi_process::pids[i].first, i)) {
+            if (motoro::process_bind_cpu(multi_process::pids[i].first, i)) {
                 multi_process::pids[i].second = i;
             }
         }
 
         std::function<void(pid_t)> refork = [&](pid_t pid) {
-            if (mongols::forker(1, process_work, multi_process::pids) > 0) {
+            if (motoro::forker(1, process_work, multi_process::pids) > 0) {
                 std::vector<std::pair<pid_t, int>>::iterator p = std::find_if(multi_process::pids.begin(),
                                                                               multi_process::pids.end(),
                                                                               [=](const std::pair<pid_t, int> &item) {
@@ -699,7 +699,7 @@ namespace mongols {
                                                                               });
                 if (p != multi_process::pids.end()) {
                     multi_process::pids.back().second = p->second;
-                    mongols::process_bind_cpu(multi_process::pids.back().first, p->second);
+                    motoro::process_bind_cpu(multi_process::pids.back().first, p->second);
                     p->second = -1;
                     p->first = -1 * pid;
                 }

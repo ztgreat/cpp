@@ -16,14 +16,14 @@
 #include <string>
 #include <thread>
 #include <vector>
-#include <mongols/Buffer.h>
-#include <mongols/request.hpp>
-#include <mongols/http_request_parser.hpp>
+#include <motoro/Buffer.h>
+#include <motoro/request.hpp>
+#include <motoro/http_request_parser.hpp>
 #include "re2/re2.h"
 #include "tcp_server.hpp"
 #include "util.hpp"
 
-namespace mongols {
+namespace motoro {
 
     std::atomic_bool tcp_server::done(true);
     int tcp_server::backlog = 511;
@@ -145,7 +145,7 @@ namespace mongols {
                 return;
             }
         }
-        mongols::epoll epoll(this->max_event_size, -1);
+        motoro::epoll epoll(this->max_event_size, -1);
         if (!epoll.is_ready()) {
             perror("epoll error");
             return;
@@ -165,7 +165,7 @@ namespace mongols {
         }
         auto main_fun = std::bind(&tcp_server::main_loop, this, std::placeholders::_1, std::cref(g), std::ref(epoll));
         if (this->thread_size > 0) {
-            this->work_pool = new mongols::thread_pool<std::function<bool()>>(this->thread_size);
+            this->work_pool = new motoro::thread_pool<std::function<bool()>>(this->thread_size);
         }
         while (tcp_server::done) {
             epoll.loop(main_fun);
@@ -185,13 +185,13 @@ namespace mongols {
     }
 
     bool tcp_server::read_whitelist_file(const std::string &path) {
-        if (mongols::is_file(path)) {
+        if (motoro::is_file(path)) {
             this->whitelist.clear();
             std::ifstream input(path);
             if (input) {
                 std::string line;
                 while (std::getline(input, line)) {
-                    mongols::trim(std::ref(line));
+                    motoro::trim(std::ref(line));
                     if (!line.empty() && line.front() != '#') {
                         this->whitelist.push_back(line);
                     }
@@ -326,7 +326,7 @@ namespace mongols {
     }
 
     bool tcp_server::work(int fd, const handler_function &g) {
-        mongols::net::Buffer *buffer = &this->clients[fd].client.buffer;
+        motoro::net::Buffer *buffer = &this->clients[fd].client.buffer;
 
         char temp[this->buffer_size];
         bool repeatable = true;
@@ -374,7 +374,7 @@ namespace mongols {
     }
 
 
-    void tcp_server::main_loop(struct epoll_event *event, const handler_function &g, mongols::epoll &epoll) {
+    void tcp_server::main_loop(struct epoll_event *event, const handler_function &g, motoro::epoll &epoll) {
         if (event->data.fd == this->listenfd) {
             struct sockaddr_storage clientaddr;
             socklen_t clilen = sizeof(clientaddr);

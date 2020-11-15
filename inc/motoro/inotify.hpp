@@ -6,7 +6,7 @@
 #include <sys/inotify.h>
 #include <unistd.h>
 
-namespace mongols {
+namespace motoro {
     class inotify {
     public:
         inotify() = delete;

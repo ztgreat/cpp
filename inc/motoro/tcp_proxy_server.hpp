@@ -13,15 +13,15 @@
 #include <vector>
 
 #include "lib/LRUCache11.hpp"
-#include "mongols/request.hpp"
-#include "mongols/response.hpp"
-#include "mongols/tcp_server.hpp"
-#include "mongols/tcp_threading_server.hpp"
-#include "mongols/route_locator.hpp"
-#include "mongols/Buffer.h"
+#include "motoro/request.hpp"
+#include "motoro/response.hpp"
+#include "motoro/tcp_server.hpp"
+#include "motoro/tcp_threading_server.hpp"
+#include "motoro/route_locator.hpp"
+#include "motoro/Buffer.h"
 
 
-namespace mongols {
+namespace motoro {
 
     class tcp_client {
     public:
@@ -56,7 +56,7 @@ namespace mongols {
 
         void run(const tcp_server::filter_handler_function &);
 
-        void run(const tcp_server::filter_handler_function &, const std::function<bool(const mongols::request &)> &);
+        void run(const tcp_server::filter_handler_function &, const std::function<bool(const motoro::request &)> &);
 
         void set_default_content(const std::string &);
 
@@ -82,7 +82,7 @@ namespace mongols {
 
         void set_shutdown(const tcp_server::shutdown_function &);
 
-        void add_route_locators(mongols::route_locator *);
+        void add_route_locators(motoro::route_locator *);
 
     private:
         size_t http_lru_cache_size;
@@ -107,13 +107,13 @@ namespace mongols {
                                std::shared_ptr<tcp_client>);
 
         std::string doRequest(const tcp_server::filter_handler_function &f,
-                              const std::function<bool(const mongols::request &)> &g,
+                              const std::function<bool(const motoro::request &)> &g,
                               const std::pair<char *, size_t> &input, bool &keepalive,
                               bool &send_to_other, tcp_server::client_t &client,
                               tcp_server::filter_handler_function &send_to_other_filter);
 
         std::string
-        http_work(const tcp_server::filter_handler_function &, const std::function<bool(const mongols::request &)> &,
+        http_work(const tcp_server::filter_handler_function &, const std::function<bool(const motoro::request &)> &,
                   const std::pair<char *, size_t> &, bool &, bool &, tcp_server::client_t &,
                   tcp_server::filter_handler_function &);
 

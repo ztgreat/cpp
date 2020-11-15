@@ -30,8 +30,8 @@ documentation and/or software.
 
 */
 
-#ifndef BZF_MD5_H
-#define BZF_MD5_H
+#ifndef MOTORO_MD5_H
+#define MOTORO_MD5_H
 
 #include <cstring>
 #include <iostream>
@@ -49,7 +49,7 @@ documentation and/or software.
 // assumes that char is 8 bit and int is 32 bit
 
 
-namespace mongols {
+namespace motoro {
 
     class MD5 {
     public:

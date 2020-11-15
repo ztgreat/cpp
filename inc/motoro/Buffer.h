@@ -11,11 +11,11 @@
 #ifndef MUDUO_NET_BUFFER_H
 #define MUDUO_NET_BUFFER_H
 
-#include "mongols/copyable.h"
-#include "mongols/StringPiece.h"
-#include "mongols/Types.h"
+#include "motoro/copyable.h"
+#include "motoro/StringPiece.h"
+#include "motoro/Types.h"
 
-#include "mongols/Endian.h"
+#include "motoro/Endian.h"
 
 #include <algorithm>
 #include <vector>
@@ -24,7 +24,7 @@
 #include <string.h>
 //#include <unistd.h>  // ssize_t
 
-namespace mongols {
+namespace motoro {
     namespace net {
 
 /// A buffer class modeled after org.jboss.netty.buffer.ChannelBuffer
@@ -37,7 +37,7 @@ namespace mongols {
 /// |                   |                  |                  |
 /// 0      <=      readerIndex   <=   writerIndex    <=     size
 /// @endcode
-        class Buffer : public mongols::copyable {
+        class Buffer : public motoro::copyable {
         public:
             static const size_t kCheapPrepend = 8;
             static const size_t kInitialSize = 4 * 1024;

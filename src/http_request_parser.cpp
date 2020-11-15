@@ -1,7 +1,7 @@
 
 #include "http_request_parser.hpp"
 
-namespace mongols {
+namespace motoro {
 
     int http_request_parser::on_message_begin(http_parser *p) {
         return 0;
@@ -65,7 +65,7 @@ namespace mongols {
         return 0;
     }
 
-    http_request_parser::http_request_parser(mongols::request &req)
+    http_request_parser::http_request_parser(motoro::request &req)
             : tmp(), parser(), settings(), req(req), body() {
         http_parser_init(&this->parser, HTTP_REQUEST);
         http_parser_settings_init(&this->settings);

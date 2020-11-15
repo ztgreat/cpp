@@ -31,12 +31,12 @@ documentation and/or software.
 */
 
 /* interface header */
-#include "mongols/MD5.h"
+#include "motoro/MD5.h"
 
 /* system implementation headers */
 #include <cstdio>
 
-namespace mongols {
+namespace motoro {
 
 // Constants for MD5Transform routine.
 #define S11 7

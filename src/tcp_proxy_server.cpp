@@ -6,17 +6,17 @@
 #include <unistd.h>
 
 #include <functional>
-#include <mongols/util.hpp>
-#include <mongols/upstream_server.hpp>
+#include <motoro/util.hpp>
+#include <motoro/upstream_server.hpp>
 #include <cstring>
 
-#include "mongols/http_request_parser.hpp"
-#include "mongols/http_response_parser.hpp"
-#include "mongols/tcp_proxy_server.hpp"
-#include "mongols/Buffer.h"
-#include "mongols/MD5.h"
+#include "motoro/http_request_parser.hpp"
+#include "motoro/http_response_parser.hpp"
+#include "motoro/tcp_proxy_server.hpp"
+#include "motoro/Buffer.h"
+#include "motoro/MD5.h"
 
-namespace mongols {
+namespace motoro {
 
     tcp_client::tcp_client(const std::string &host, int port)
             : host(host), port(port), socket_fd(-1), server_addr(), server(0) {
@@ -83,7 +83,7 @@ namespace mongols {
               enable_http_lru_cache(false), enable_tcp_send_to_other(true), server(0), clients(),
               default_content(tcp_proxy_server::DEFAULT_TCP_CONTENT), http_lru_cache(0) {
 
-        this->route_locators = new std::vector<mongols::route_locator *>();
+        this->route_locators = new std::vector<motoro::route_locator *>();
 
         if (thread_size > 0) {
             this->server = new tcp_threading_server(host, port, timeout, buffer_size, thread_size, max_event_size);
@@ -120,7 +120,7 @@ namespace mongols {
     }
 
     void tcp_proxy_server::run(const tcp_server::filter_handler_function &f,
-                               const std::function<bool(const mongols::request &)> &g) {
+                               const std::function<bool(const motoro::request &)> &g) {
         if (this->enable_http_lru_cache) {
             this->http_lru_cache = new lru11::Cache<std::string, std::shared_ptr<std::pair<std::string, time_t>>>(
                     this->http_lru_cache_size);
@@ -133,7 +133,7 @@ namespace mongols {
         this->server->run(ff);
     }
 
-    void tcp_proxy_server::add_route_locators(mongols::route_locator *routeLocator) {
+    void tcp_proxy_server::add_route_locators(motoro::route_locator *routeLocator) {
         this->route_locators->insert(this->route_locators->begin(), routeLocator);
     }
 
@@ -193,7 +193,7 @@ namespace mongols {
             if (iter == this->clients.end()) {
                 new_client:
                 for (auto route : *(this->route_locators)) {
-                    mongols::upstream_server *upstreamServer = route->choseServer(nullptr);
+                    motoro::upstream_server *upstreamServer = route->choseServer(nullptr);
                     if (upstreamServer) {
                         cli = std::make_shared<tcp_client>(upstreamServer->server, upstreamServer->port);
                         break;
@@ -238,9 +238,9 @@ namespace mongols {
                                              tcp_server::client_t &client,
                                              std::shared_ptr<tcp_client> up_server) {
 
-        mongols::response &res = client.res;
-        mongols::http_response_parser res_parser(res);
-        mongols::StringPiece piece = client.buffer.toStringPiece();
+        motoro::response &res = client.res;
+        motoro::http_response_parser res_parser(res);
+        motoro::StringPiece piece = client.buffer.toStringPiece();
         bool success = res_parser.parse(piece.data(), piece.size());
         if (!success) {
             // 没解析成功，包错误
@@ -316,7 +316,7 @@ namespace mongols {
     }
 
     std::string tcp_proxy_server::doRequest(const tcp_server::filter_handler_function &f,
-                                            const std::function<bool(const mongols::request &)> &g,
+                                            const std::function<bool(const motoro::request &)> &g,
                                             const std::pair<char *, size_t> &input, bool &keepalive,
                                             bool &send_to_other, tcp_server::client_t &client,
                                             tcp_server::filter_handler_function &send_to_other_filter) {
@@ -330,10 +330,10 @@ namespace mongols {
         if (!f(client)) {
             return "0";
         }
-        mongols::request &req = client.req;
+        motoro::request &req = client.req;
 
-        mongols::http_request_parser req_parser(req);
-        mongols::StringPiece piece = client.buffer.toStringPiece();
+        motoro::http_request_parser req_parser(req);
+        motoro::StringPiece piece = client.buffer.toStringPiece();
         bool success = req_parser.parse(piece.data(), piece.size());
         if (!success) {
             // 没解析成功，包错误
@@ -380,7 +380,7 @@ namespace mongols {
         if (iter == this->clients.end()) {
             new_client:
             for (auto route : *(this->route_locators)) {
-                mongols::upstream_server *upstreamServer = route->choseServer(&req);
+                motoro::upstream_server *upstreamServer = route->choseServer(&req);
                 if (upstreamServer) {
                     cli = std::make_shared<tcp_client>(upstreamServer->server, upstreamServer->port);
                     break;
@@ -423,7 +423,7 @@ namespace mongols {
     }
 
     std::string tcp_proxy_server::http_work(const tcp_server::filter_handler_function &f,
-                                            const std::function<bool(const mongols::request &)> &g,
+                                            const std::function<bool(const motoro::request &)> &g,
                                             const std::pair<char *, size_t> &input, bool &keepalive,
                                             bool &send_to_other, tcp_server::client_t &client,
                                             tcp_server::filter_handler_function &send_to_other_filter) {

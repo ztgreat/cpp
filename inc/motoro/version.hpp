@@ -1,6 +1,6 @@
 #ifndef B2C01A81_0BAF_40D0_A8E8_494238A6FB08
 #define B2C01A81_0BAF_40D0_A8E8_494238A6FB08
 
-#define mongols_http_server_version "mongols/1.8.4"
+#define motoro_http_server_version "motoro/1.8.4"
 
 #endif /* B2C01A81_0BAF_40D0_A8E8_494238A6FB08 */

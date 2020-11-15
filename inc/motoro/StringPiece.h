@@ -43,9 +43,9 @@
 #include <string.h>
 #include <iosfwd>    // for ostream forward-declaration
 
-#include "mongols/Types.h"
+#include "motoro/Types.h"
 
-namespace mongols {
+namespace motoro {
 
 // For passing C-style string argument to a function.
     class StringArg // copyable
@@ -206,6 +206,6 @@ template<> struct __type_traits<muduo::StringPiece> {
 #endif
 
 // allow StringPiece to be logged
-std::ostream &operator<<(std::ostream &o, const mongols::StringPiece &piece);
+std::ostream &operator<<(std::ostream &o, const motoro::StringPiece &piece);
 
 #endif  // MUDUO_BASE_STRINGPIECE_H

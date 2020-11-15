@@ -8,9 +8,9 @@
 #include <thread>
 #include <vector>
 
-#include "mongols/safe_queue.hpp"
+#include "motoro/safe_queue.hpp"
 
-namespace mongols {
+namespace motoro {
 
     class join_thread {
     private:

@@ -5,7 +5,7 @@
 #include "thread_pool.hpp"
 #include <mutex>
 
-namespace mongols {
+namespace motoro {
 
     class tcp_threading_server : public tcp_server {
     public:

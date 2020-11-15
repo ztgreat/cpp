@@ -6,10 +6,10 @@
 
 // Author: Shuo Chen (chenshuo at chenshuo dot com)
 
-#include "mongols/SocketsOps.h"
+#include "motoro/SocketsOps.h"
 
-#include "mongols/Types.h"
-#include "mongols/Endian.h"
+#include "motoro/Types.h"
+#include "motoro/Endian.h"
 
 #include <errno.h>
 #include <fcntl.h>
@@ -19,8 +19,8 @@
 #include <unistd.h>
 #include <cassert>
 
-using namespace mongols;
-using namespace mongols::net;
+using namespace motoro;
+using namespace motoro::net;
 
 namespace
 {

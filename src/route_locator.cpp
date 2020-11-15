@@ -2,14 +2,14 @@
 #define CAAA25FF8AD29DAD06218DC8D1D01C7C0F
 
 #include <string>
-#include <mongols/upstream_server.hpp>
+#include <motoro/upstream_server.hpp>
 #include <vector>
-#include <mongols/route_locator.hpp>
-#include "mongols/request.hpp"
+#include <motoro/route_locator.hpp>
+#include "motoro/request.hpp"
 
-namespace mongols {
+namespace motoro {
 
-    mongols::upstream_server *mongols::route_locator::choseServer(const mongols::request *request) {
+    motoro::upstream_server *motoro::route_locator::choseServer(const motoro::request *request) {
 
         // tcp
         if (request == nullptr) {
@@ -21,7 +21,7 @@ namespace mongols {
         std::vector<std::string> param;
         for (auto it = this->route_predicate->begin(); it != this->route_predicate->end(); it++) {
             if ((*it)->match(*request, param)) {
-                mongols::upstream_server *up = this->load_balance->choseServer();
+                motoro::upstream_server *up = this->load_balance->choseServer();
                 return up;
             }
         }

@@ -12,7 +12,7 @@
 #include "tcp_threading_server.hpp"
 #include "util.hpp"
 
-namespace mongols {
+namespace motoro {
 
     tcp_threading_server::tcp_threading_server(const std::string &host, int port, int timeout, size_t buffer_size,
                                                size_t thread_size, int max_event_size)
@@ -31,14 +31,14 @@ namespace mongols {
     }
 
     bool tcp_threading_server::read_whitelist_file(const std::string &path) {
-        if (mongols::is_file(path)) {
+        if (motoro::is_file(path)) {
             std::lock_guard<std::mutex> lk(this->main_mtx);
             this->whitelist.clear();
             std::ifstream input(path);
             if (input) {
                 std::string line;
                 while (std::getline(input, line)) {
-                    mongols::trim(line);
+                    motoro::trim(line);
                     if (!line.empty()) {
                         this->whitelist.push_back(line);
                     }

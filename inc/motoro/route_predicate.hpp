@@ -1,10 +1,10 @@
-#ifndef MONGOLS_ROUTE_PREDICATE_HPP
-#define MONGOLS_ROUTE_PREDICATE_HPP
+#ifndef MOTORO_ROUTE_PREDICATE_HPP
+#define MOTORO_ROUTE_PREDICATE_HPP
 
 #include <string>
-#include "mongols/request.hpp"
+#include "motoro/request.hpp"
 
-namespace mongols {
+namespace motoro {
 
     class route_predicate {
     public:
@@ -18,7 +18,7 @@ namespace mongols {
             this->rule = rule;
         }
 
-        virtual bool match(const mongols::request &request, std::vector<std::string> &param) = 0;
+        virtual bool match(const motoro::request &request, std::vector<std::string> &param) = 0;
     };
 
 }

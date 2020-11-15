@@ -1,6 +1,6 @@
 #include "http_response_parser.hpp"
 
-namespace mongols {
+namespace motoro {
 
     int http_response_parser::on_message_begin(http_parser *p) {
         return 0;
@@ -53,7 +53,7 @@ namespace mongols {
         return 0;
     }
 
-    http_response_parser::http_response_parser(mongols::response &res)
+    http_response_parser::http_response_parser(motoro::response &res)
             : tmp(), parser(), settings(), res(res), body() {
         res.headers.erase("Content-Type");
         http_parser_init(&this->parser, HTTP_RESPONSE);

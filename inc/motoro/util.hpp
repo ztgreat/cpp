@@ -14,7 +14,7 @@
 #include <unordered_map>
 #include <vector>
 
-namespace mongols {
+namespace motoro {
 
 
     bool read_file(const std::string &path, std::string &out);

@@ -1,18 +1,18 @@
-#ifndef MONGOLS_LOAD_BALANCE_HPP
-#define MONGOLS_LOAD_BALANCE_HPP
+#ifndef MOTORO_LOAD_BALANCE_HPP
+#define MOTORO_LOAD_BALANCE_HPP
 
 #include <string>
-#include <mongols/upstream_server.hpp>
+#include <motoro/upstream_server.hpp>
 #include <vector>
 
-namespace mongols {
+namespace motoro {
 
     class load_balance {
     public:
-        std::vector<mongols::upstream_server *> *upstream_server_list;
+        std::vector<motoro::upstream_server *> *upstream_server_list;
     public:
         load_balance() {
-            this->upstream_server_list = new std::vector<mongols::upstream_server *>();
+            this->upstream_server_list = new std::vector<motoro::upstream_server *>();
         }
 
         ~load_balance() {
@@ -28,7 +28,7 @@ namespace mongols {
             this->upstream_server_list->insert(this->upstream_server_list->end(), upstreamServer);
         }
 
-        virtual mongols::upstream_server *choseServer();
+        virtual motoro::upstream_server *choseServer();
     };
 
 }

@@ -14,7 +14,7 @@
 #include <stdint.h>
 #include <endian.h>
 
-namespace mongols
+namespace motoro
 {
 namespace net
 {

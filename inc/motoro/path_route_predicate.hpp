@@ -1,16 +1,16 @@
-#ifndef MONGOLS_PATH_ROUTE_PREDICATE_HPP
-#define MONGOLS_PATH_ROUTE_PREDICATE_HPP
+#ifndef MOTORO_PATH_ROUTE_PREDICATE_HPP
+#define MOTORO_PATH_ROUTE_PREDICATE_HPP
 
 
 #include <string>
 #include <upstream_server.hpp>
 #include <vector>
 #include <memory>
-#include "mongols/request.hpp"
-#include "mongols/route_locator.hpp"
-#include <mongols/util.hpp>
+#include "motoro/request.hpp"
+#include "motoro/route_locator.hpp"
+#include <motoro/util.hpp>
 
-namespace mongols {
+namespace motoro {
 
 
     class path_route_predicate : public route_predicate {
@@ -24,7 +24,7 @@ namespace mongols {
 
         path_route_predicate(const std::string &type, const std::string &rule);
 
-        bool match(const mongols::request &request, std::vector<std::string> &param) override;
+        bool match(const motoro::request &request, std::vector<std::string> &param) override;
     };
 
 }

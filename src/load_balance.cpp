@@ -1,9 +1,9 @@
-#include <mongols/upstream_server.hpp>
-#include "mongols/load_balance.hpp"
+#include <motoro/upstream_server.hpp>
+#include "motoro/load_balance.hpp"
 
-namespace mongols {
+namespace motoro {
 
-    mongols::upstream_server *load_balance::choseServer() {
+    motoro::upstream_server *load_balance::choseServer() {
         return (*this->upstream_server_list)[0];
     }
 }

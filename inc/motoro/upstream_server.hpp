@@ -1,9 +1,9 @@
-#ifndef MONGOLS_UPSTREAM_SERVER_HPP
-#define MONGOLS_UPSTREAM_SERVER_HPP
+#ifndef MOTORO_UPSTREAM_SERVER_HPP
+#define MOTORO_UPSTREAM_SERVER_HPP
 
 #include <string>
 
-namespace mongols {
+namespace motoro {
 
     class upstream_server {
     public:

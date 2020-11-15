@@ -2,9 +2,9 @@
 #include <sys/epoll.h>
 #include <unistd.h>
 
-#include "mongols/epoll.hpp"
+#include "motoro/epoll.hpp"
 
-namespace mongols {
+namespace motoro {
 
     epoll::epoll(int ev_size, int timeout)
             : epfd(0), ev_size(ev_size), real_ev_size(0), timeout(timeout), ev(), evs(0) {

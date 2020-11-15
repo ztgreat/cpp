@@ -1,20 +1,20 @@
-#ifndef AB62B027_AAFD_4611_8EF3_19FF408D5F97
-#define AB62B027_AAFD_4611_8EF3_19FF408D5F97
+#ifndef CFE995BF_4AA1_42AC_83F1_B87B7E2C528D
+#define CFE995BF_4AA1_42AC_83F1_B87B7E2C528D
 
 #include <string>
 
 #include "lib/http_parser.h"
-#include "request.hpp"
+#include "response.hpp"
 
-namespace mongols {
+namespace motoro {
 
-    class http_request_parser {
+    class http_response_parser {
     public:
-        http_request_parser() = delete;
+        http_response_parser() = delete;
 
-        http_request_parser(mongols::request &req);
+        http_response_parser(motoro::response &res);
 
-        virtual ~http_request_parser() = default;
+        virtual ~http_response_parser() = default;
 
         bool parse(const std::string &str);
 
@@ -24,23 +24,19 @@ namespace mongols {
 
         std::string &get_body();
 
-        bool keep_alive() const;
-
-        bool upgrade() const;
-
         bool message_complete();
 
     private:
         struct tmp_ {
             std::pair<std::string, std::string> pair;
-            http_request_parser *parser;
+            http_response_parser *parser;
         };
 
     private:
         tmp_ tmp;
         http_parser parser;
         http_parser_settings settings;
-        mongols::request &req;
+        motoro::response &res;
         std::string body;
 
     private:
@@ -66,4 +62,4 @@ namespace mongols {
     };
 }
 
-#endif /* AB62B027_AAFD_4611_8EF3_19FF408D5F97 */
+#endif /* CFE995BF_4AA1_42AC_83F1_B87B7E2C528D */

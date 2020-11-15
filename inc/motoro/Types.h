@@ -12,7 +12,7 @@
 ///
 /// The most common stuffs.
 ///
-namespace mongols
+namespace motoro
 {
 
 using std::string;

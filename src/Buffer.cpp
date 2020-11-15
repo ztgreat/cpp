@@ -7,17 +7,17 @@
 // Author: Shuo Chen (chenshuo at chenshuo dot com)
 //
 
-#include "mongols/Buffer.h"
+#include "motoro/Buffer.h"
 
-#include "mongols/SocketsOps.h"
+#include "motoro/SocketsOps.h"
 
 #include <errno.h>
 #include <sys/uio.h>
 
-using namespace mongols;
-using namespace mongols::net;
+using namespace motoro;
+using namespace motoro::net;
 
-const char mongols::net::Buffer::kCRLF[] = "\r\n";
+const char motoro::net::Buffer::kCRLF[] = "\r\n";
 
 const size_t Buffer::kCheapPrepend;
 const size_t Buffer::kInitialSize;

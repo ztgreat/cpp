@@ -1,7 +1,7 @@
 #ifndef MUDUO_BASE_COPYABLE_H
 #define MUDUO_BASE_COPYABLE_H
 
-namespace mongols
+namespace motoro
 {
 
 /// A tag class emphasises the objects are copyable.
