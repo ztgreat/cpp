@@ -50,6 +50,8 @@ namespace mongols {
             time_t t;
             size_t sid, uid, u_size, count;
             std::list<size_t> gid;
+
+            mongols::request req;
         };
 
         typedef std::function<void(int)> setsockopt_function;
@@ -126,7 +128,7 @@ namespace mongols {
         public:
             client_t client;
             mongols::net::Buffer buffer;
-            mongols::request req;
+
         };
 
         class black_ip_t {

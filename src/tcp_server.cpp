@@ -244,7 +244,7 @@ namespace mongols {
 
     void tcp_server::del_client(int fd) {
         this->clients[fd].buffer.shrink();
-        this->clients[fd].req.clean();
+        this->clients[fd].client.req.clean();
         this->server_epoll->del(fd);
         this->sid_queue.push(this->clients.find(fd)->second.client.sid);
         this->clients.erase(fd);
@@ -339,7 +339,7 @@ namespace mongols {
 
     bool tcp_server::work(int fd, const handler_function &g) {
         mongols::net::Buffer *buffer = &this->clients[fd].buffer;
-        mongols::request *req = &this->clients[fd].req;
+        mongols::request *req = &this->clients[fd].client.req;
         ssize_t ret = receiveClientData(fd, *buffer, *req);
         if (ret < 0) {
             if (errno == EINTR) {

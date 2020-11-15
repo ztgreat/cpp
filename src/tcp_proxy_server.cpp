@@ -233,42 +233,37 @@ namespace mongols {
         std::shared_ptr<std::string> cache_key;
         std::shared_ptr<std::pair<std::string, time_t>> output;
         if (f(client)) {
-            mongols::request req;
-            mongols::http_request_parser parser(req);
-            if (parser.parse(input.first, input.second)) {
-                req.client = client.ip;
-                if (g(req)) {
-                    goto http_process;
-                } else {
-                    goto done;
-                }
-                http_process:
-                std::unordered_map<std::string, std::string>::const_iterator tmp_iterator;
-                if ((tmp_iterator = req.headers.find("Connection")) != req.headers.end()) {
-                    if (tmp_iterator->second == "close") {
-                        keepalive = CLOSE_CONNECTION;
-                    }
-                } else {
-                    keepalive = CLOSE_CONNECTION;
-                }
-                if (this->enable_http_lru_cache && std::strcmp(req.method.c_str(), "GET") == 0) {
-                    std::string tmp_str(req.method);
-                    tmp_str.append(req.uri);
-                    cache_key = std::make_shared<std::string>(std::move(
-                            mongols::md5(req.param.empty() ? tmp_str : tmp_str.append("?").append(req.param))));
-                    if (this->http_lru_cache->contains(*cache_key)) {
-                        output = this->http_lru_cache->get(*cache_key);
-                        if (difftime(time(0), output->second) > this->http_lru_cache_expires) {
-                            this->http_lru_cache->remove(*cache_key);
-                        } else {
-                            return output->first;
-                        }
-                    }
-                }
-
+            mongols::request &req = client.req;
+            req.client = client.ip;
+            if (g(req)) {
+                goto http_process;
             } else {
                 goto done;
             }
+            http_process:
+            std::unordered_map<std::string, std::string>::const_iterator tmp_iterator;
+            if ((tmp_iterator = req.headers.find("Connection")) != req.headers.end()) {
+                if (tmp_iterator->second == "close") {
+                    keepalive = CLOSE_CONNECTION;
+                }
+            } else {
+                keepalive = CLOSE_CONNECTION;
+            }
+            if (this->enable_http_lru_cache && std::strcmp(req.method.c_str(), "GET") == 0) {
+                std::string tmp_str(req.method);
+                tmp_str.append(req.uri);
+                cache_key = std::make_shared<std::string>(std::move(
+                        mongols::md5(req.param.empty() ? tmp_str : tmp_str.append("?").append(req.param))));
+                if (this->http_lru_cache->contains(*cache_key)) {
+                    output = this->http_lru_cache->get(*cache_key);
+                    if (difftime(time(0), output->second) > this->http_lru_cache_expires) {
+                        this->http_lru_cache->remove(*cache_key);
+                    } else {
+                        return output->first;
+                    }
+                }
+            }
+
 
             std::unordered_map<size_t, std::shared_ptr<tcp_client>>::iterator iter = this->clients.find(client.sid);
             std::shared_ptr<tcp_client> cli;
