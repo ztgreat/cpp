@@ -104,9 +104,10 @@ namespace mongols {
         this->gid.push_back(0);
     }
 
-    tcp_server::client_t::client_t(const std::string &ip, int port, size_t uid, size_t gid)
+    tcp_server::client_t::client_t(const std::string &ip, int port, size_t uid, size_t gid, bool is_up_server,
+                                   size_t client_sid, int client_socket_fd)
             : type(tcp_server::connection_t::TCP), ip(ip), port(port), t(time(0)), sid(0), uid(uid), u_size(0),
-              count(0), gid() {
+              count(0), gid(), is_up_server(is_up_server), client_sid(client_sid), client_socket_fd(client_socket_fd) {
         this->gid.push_back(gid);
     }
 
@@ -114,8 +115,9 @@ namespace mongols {
             : client() {
     }
 
-    tcp_server::meta_data_t::meta_data_t(const std::string &ip, int port, size_t uid, size_t gid)
-            : client(ip, port, uid, gid) {
+    tcp_server::meta_data_t::meta_data_t(const std::string &ip, int port, size_t uid, size_t gid, bool is_up_server,
+                                         size_t client_sid, int client_socket_fd)
+            : client(ip, port, uid, gid, is_up_server, client_sid, client_socket_fd) {
     }
 
     tcp_server::black_ip_t::black_ip_t()
@@ -230,26 +232,45 @@ namespace mongols {
         fcntl(fd, F_SETFL, flags | O_NONBLOCK);
     }
 
-    bool tcp_server::add_client(int fd, const std::string &ip, int port) {
+    bool
+    tcp_server::add_client(int fd, const std::string &ip, int port, bool is_up_server = false, size_t client_sid = -1,
+                           int client_socket_fd = -1) {
         this->server_epoll->add(fd, EPOLLIN | EPOLLRDHUP | EPOLLET);
-        auto pair = this->clients.insert(std::move(std::make_pair(fd, std::move(meta_data_t(ip, port, 0, 0)))));
+        auto pair = this->clients.insert(
+                std::move(std::make_pair(fd, std::move(
+                        meta_data_t(ip, port, 0, 0, is_up_server, client_sid, client_socket_fd)))));
         if (this->sid_queue.empty()) {
+            // todo 溢出风险
             pair.first->second.client.sid = ++this->sid;
         } else {
             pair.first->second.client.sid = this->sid_queue.front();
             this->sid_queue.pop();
         }
+        pair.first->second.client.socket_fd = fd;
         return true;
     }
 
     void tcp_server::del_client(int fd) {
+        if (fd <= 0) {
+            return;
+        }
         this->clients[fd].client.buffer.shrink();
         this->clients[fd].client.req.clean();
+        this->clients[fd].client.res.clean();
         this->server_epoll->del(fd);
         this->sid_queue.push(this->clients.find(fd)->second.client.sid);
         this->clients.erase(fd);
         shutdown(fd, SHUT_RDWR);
         close(fd);
+    }
+
+    void tcp_server::clean(int fd) {
+        if (fd <= 0) {
+            return;
+        }
+        this->clients[fd].client.buffer.shrink();
+        this->clients[fd].client.req.clean();
+        this->clients[fd].client.res.clean();
     }
 
     bool tcp_server::send_to_all_client(int fd, const std::string &str, const filter_handler_function &h) {
@@ -299,57 +320,26 @@ namespace mongols {
         }) != this->whitelist.end();
     }
 
+    bool tcp_server::work(int fd, const handler_function &g) {
+        mongols::net::Buffer *buffer = &this->clients[fd].client.buffer;
 
-    ssize_t tcp_server::receiveClientData(int fd, mongols::net::Buffer &buffer,
-                                          mongols::request &req) {
-
-        ssize_t recv_ret = 0;
-        bool repeatable = true;
         char temp[this->buffer_size];
-        again:
-        recv_ret = recv(fd, temp, this->buffer_size, MSG_WAITALL);
-        if (recv_ret < 0) {
+        bool repeatable = true;
+        ev_recv:
+        ssize_t ret = recv(fd, temp, this->buffer_size, MSG_WAITALL);
+        if (ret < 0) {
             if (errno == EINTR) {
                 if (repeatable) {
                     repeatable = false;
-                    goto again;
+                    goto ev_recv;
                 }
-                return recv_ret;
-            } else if (errno == EAGAIN) {
-                return recv_ret;
-            } else {
-                return recv_ret;
-            }
-        } else if (recv_ret > 0) {
-            buffer.append(temp, recv_ret);
-            mongols::http_request_parser req_parser(req);
-            mongols::StringPiece piece = buffer.toStringPiece();
-            bool success = req_parser.parse(piece.data(), piece.size());
-            if (!success) {
-                return 0;
-            }
-            if (!req_parser.message_complete()) {
-                goto again;
-            }
-            return piece.size();
-        } else {
-            return recv_ret;
-        }
-    }
-
-    bool tcp_server::work(int fd, const handler_function &g) {
-        mongols::net::Buffer *buffer = &this->clients[fd].client.buffer;
-        mongols::request *req = &this->clients[fd].client.req;
-        ssize_t ret = receiveClientData(fd, *buffer, *req);
-        if (ret < 0) {
-            if (errno == EINTR) {
-                return false;
             } else if (errno == EAGAIN) {
                 return false;
             }
             goto ev_error;
 
         } else if (ret > 0) {
+            buffer->append(temp, ret);
             std::pair<char *, size_t> input;
             StringPiece stringPiece = buffer->toStringPiece();
             input.first = const_cast<char *>(stringPiece.data());
@@ -357,22 +347,15 @@ namespace mongols {
             filter_handler_function send_to_other_filter = [](const client_t &) {
                 return true;
             };
-
             bool keepalive = CLOSE_CONNECTION, send_to_all = false;
             client_t &client = this->clients[fd].client;
             client.u_size = this->clients.size();
             client.count++;
 
-            std::string output = std::move(g(input, keepalive, send_to_all, client, send_to_other_filter));
-            if (output.empty()) {
-                buffer->shrink();
-                req->clean();
-                return false;
-            }
-            ret = send(fd, output.c_str(), output.size(), MSG_NOSIGNAL);
-            buffer->shrink();
-            req->clean();
-            if (ret <= 0 || keepalive == CLOSE_CONNECTION) {
+
+            std::string success = std::move(g(input, keepalive, send_to_all, client, send_to_other_filter));
+
+            if (std::strcmp(success.c_str(), "0") == 0) {
                 goto ev_error;
             }
 
@@ -384,6 +367,7 @@ namespace mongols {
 
         return false;
     }
+
 
     void tcp_server::main_loop(struct epoll_event *event, const handler_function &g, mongols::epoll &epoll) {
         if (event->data.fd == this->listenfd) {

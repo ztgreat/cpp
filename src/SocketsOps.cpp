@@ -17,6 +17,7 @@
 #include <sys/socket.h>
 #include <sys/uio.h>  // readv
 #include <unistd.h>
+#include <cassert>
 
 using namespace mongols;
 using namespace mongols::net;

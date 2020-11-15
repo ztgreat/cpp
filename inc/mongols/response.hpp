@@ -33,6 +33,12 @@ namespace mongols {
             this->cache.insert(std::move(std::make_pair(key, value)));
         }
 
+        void clean() {
+            this->headers.clear();
+            this->session.clear();
+            this->cache.clear();
+        }
+
         int status;
         std::string content;
         std::unordered_multimap<std::string, std::string> headers;

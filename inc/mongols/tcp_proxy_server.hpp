@@ -38,7 +38,7 @@ namespace mongols {
     private:
         void init();
 
-    private:
+    public:
         std::string host;
         int port, socket_fd;
         struct sockaddr_in server_addr;
@@ -63,9 +63,6 @@ namespace mongols {
         void set_enable_tcp_send_to_other(bool);
 
         void set_default_http_content();
-
-        ssize_t
-        receiveUpServerData(const std::shared_ptr<tcp_client> &, mongols::net::Buffer &, mongols::response &res);
 
         void set_enable_http_lru_cache(bool);
 
@@ -99,6 +96,21 @@ namespace mongols {
 
         std::string work(const tcp_server::filter_handler_function &, const std::pair<char *, size_t> &, bool &, bool &,
                          tcp_server::client_t &, tcp_server::filter_handler_function &);
+
+
+        void del_up_server(size_t &client_sid);
+
+        void cleanHttpContext(int &fd);
+
+        std::string doResponse(bool &keepalive,
+                               tcp_server::client_t &client,
+                               std::shared_ptr<tcp_client>);
+
+        std::string doRequest(const tcp_server::filter_handler_function &f,
+                              const std::function<bool(const mongols::request &)> &g,
+                              const std::pair<char *, size_t> &input, bool &keepalive,
+                              bool &send_to_other, tcp_server::client_t &client,
+                              tcp_server::filter_handler_function &send_to_other_filter);
 
         std::string
         http_work(const tcp_server::filter_handler_function &, const std::function<bool(const mongols::request &)> &,

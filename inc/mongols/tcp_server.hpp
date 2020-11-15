@@ -22,6 +22,7 @@
 #include "thread_pool.hpp"
 #include "mongols/Buffer.h"
 #include "mongols/request.hpp"
+#include "response.hpp"
 
 #define CLOSE_CONNECTION true
 #define KEEPALIVE_CONNECTION false
@@ -40,18 +41,25 @@ namespace mongols {
         public:
             client_t();
 
-            client_t(const std::string &ip, int port, size_t uid, size_t gid);
+            client_t(const std::string &ip, int port, size_t uid, size_t gid, bool, size_t, int);
 
             virtual ~client_t() = default;
 
             connection_t type;
             std::string ip;
             int port;
+            int socket_fd;
             time_t t;
             size_t sid, uid, u_size, count;
             std::list<size_t> gid;
             mongols::net::Buffer buffer;
             mongols::request req;
+            mongols::response res;
+
+            // only for up_server
+            bool is_up_server;
+            size_t client_sid;
+            int client_socket_fd;
         };
 
         typedef std::function<void(int)> setsockopt_function;
@@ -73,13 +81,19 @@ namespace mongols {
         virtual ~tcp_server();
 
     public:
+        virtual bool add_client(int, const std::string &, int, bool, size_t, int);
+
+        virtual void del_client(int);
+
+        virtual void clean(int);
+
+        void setnonblocking(int fd);
+
         void run(const handler_function &);
 
         size_t get_buffer_size() const;
 
         void set_enable_blacklist(bool);
-
-        void set_enable_security_check(bool);
 
         void set_enable_whitelist(bool);
 
@@ -110,7 +124,6 @@ namespace mongols {
 
         static void signal_normal_cb(int sig, siginfo_t *, void *);
 
-        void setnonblocking(int fd);
 
         void main_loop(struct epoll_event *, const handler_function &, mongols::epoll &);
 
@@ -121,13 +134,12 @@ namespace mongols {
         public:
             meta_data_t();
 
-            meta_data_t(const std::string &ip, int port, size_t uid, size_t gid);
+            meta_data_t(const std::string &ip, int port, size_t uid, size_t gid, bool, size_t, int);
 
             virtual ~meta_data_t() = default;
 
         public:
             client_t client;
-
         };
 
         class black_ip_t {
@@ -153,10 +165,6 @@ namespace mongols {
 
         bool enable_blacklist, enable_whitelist;
 
-        virtual bool add_client(int, const std::string &, int);
-
-        virtual void del_client(int);
-
         virtual bool send_to_all_client(int, const std::string &, const filter_handler_function &);
 
         virtual bool work(int, const handler_function &);
@@ -167,8 +175,6 @@ namespace mongols {
 
         virtual bool read_whitelist_file(const std::string &);
 
-        ssize_t receiveClientData(int fd, mongols::net::Buffer &buffer,
-                                  mongols::request &req);
     };
 }
 

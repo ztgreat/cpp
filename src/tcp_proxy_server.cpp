@@ -205,6 +205,10 @@ namespace mongols {
                 is_old = true;
             }
 
+            if (cli == nullptr) {
+                std::cout << "null" << std::endl;
+            }
+
             if (cli->ok()) {
                 ssize_t ret = cli->send(input.first, input.second);
                 if (ret > 0) {
@@ -223,151 +227,206 @@ namespace mongols {
         return this->default_content;
     }
 
+
+    std::string tcp_proxy_server::doResponse(bool &keepalive,
+                                             tcp_server::client_t &client,
+                                             std::shared_ptr<tcp_client> up_server) {
+
+        mongols::response &res = client.res;
+        mongols::http_response_parser res_parser(res);
+        mongols::StringPiece piece = client.buffer.toStringPiece();
+        bool success = res_parser.parse(piece.data(), piece.size());
+        if (!success) {
+            // 没解析成功，包错误
+            this->del_up_server(client.client_sid);
+            return "0";
+        }
+        if (!res_parser.message_complete()) {
+            // 包还没有接收完整，继续接收
+            return "1";
+        }
+
+        std::shared_ptr<std::pair<std::string, time_t>> output;
+        output = std::make_shared<std::pair<std::string, time_t>>();
+
+        output->first.assign(piece.data(), piece.size());
+        output->second = time(0);
+        auto i = res.headers.find("Connection");
+        if (i == res.headers.end()) {
+            this->del_up_server(client.client_sid);
+            auto p = output->first.find("\n");
+            if (p != std::string::npos) {
+                output->first.insert(p + 1, keepalive == KEEPALIVE_CONNECTION
+                                            ? "Connection: keep-alive\r\n"
+                                            : "Connection: close\r\n");
+            }
+        } else if (i->second == "close" && keepalive == KEEPALIVE_CONNECTION) {
+            this->del_up_server(client.client_sid);
+            auto p = output->first.find("close");
+            if (p != std::string::npos) {
+                output->first.replace(p, 5, "keep-alive");
+            }
+
+        } else if (i->second == "keep-alive" && keepalive == CLOSE_CONNECTION) {
+            keepalive = KEEPALIVE_CONNECTION;
+            /*auto p = output->first.find("keep-alive");
+                if (p != std::string::npos) {
+                    output->first.replace(p, 10, "close");
+                }*/
+        }
+
+
+        size_t ret = send(client.client_socket_fd, output->first.c_str(), output->first.size(), MSG_NOSIGNAL);
+
+        this->cleanHttpContext(client.client_socket_fd);
+        this->cleanHttpContext(up_server->socket_fd);
+        if (ret <= 0 || keepalive == CLOSE_CONNECTION) {
+            this->del_up_server(client.client_sid);
+            return "0";
+        }
+        return "1";
+
+    }
+
+    void tcp_proxy_server::del_up_server(size_t &client_sid) {
+
+        std::shared_ptr<tcp_client> cli = this->clients[client_sid];
+        this->server->del_client(cli->socket_fd);
+        this->clients.erase(client_sid);
+        shutdown(cli->socket_fd, SHUT_RDWR);
+        close(cli->socket_fd);
+    }
+
+    void tcp_proxy_server::cleanHttpContext(int &fd) {
+        if (fd <= 0) {
+            return;
+        }
+        this->server->clean(fd);
+    }
+
+    std::string tcp_proxy_server::doRequest(const tcp_server::filter_handler_function &f,
+                                            const std::function<bool(const mongols::request &)> &g,
+                                            const std::pair<char *, size_t> &input, bool &keepalive,
+                                            bool &send_to_other, tcp_server::client_t &client,
+                                            tcp_server::filter_handler_function &send_to_other_filter) {
+
+
+        keepalive = KEEPALIVE_CONNECTION;
+        send_to_other = false;
+        std::shared_ptr<std::string> cache_key;
+        std::shared_ptr<std::pair<std::string, time_t>> output;
+
+        if (!f(client)) {
+            return "0";
+        }
+        mongols::request &req = client.req;
+
+        mongols::http_request_parser req_parser(req);
+        mongols::StringPiece piece = client.buffer.toStringPiece();
+        bool success = req_parser.parse(piece.data(), piece.size());
+        if (!success) {
+            // 没解析成功，包错误
+            return "0";
+        }
+        if (!req_parser.message_complete()) {
+            // 包还没有接收完整，继续接收
+            return "1";
+        }
+
+        req.client = client.ip;
+        if (!g(req)) {
+            return "0";
+        }
+
+        std::unordered_map<std::string, std::string>::const_iterator tmp_iterator;
+        if ((tmp_iterator = req.headers.find("Connection")) != req.headers.end()) {
+            if (tmp_iterator->second == "close") {
+                keepalive = CLOSE_CONNECTION;
+            }
+        } else {
+            keepalive = CLOSE_CONNECTION;
+        }
+        if (this->enable_http_lru_cache && std::strcmp(req.method.c_str(), "GET") == 0) {
+            std::string tmp_str(req.method);
+            tmp_str.append(req.uri);
+            cache_key = std::make_shared<std::string>(std::move(
+                    mongols::md5(req.param.empty() ? tmp_str : tmp_str.append("?").append(req.param))));
+            if (this->http_lru_cache->contains(*cache_key)) {
+                output = this->http_lru_cache->get(*cache_key);
+                if (difftime(time(0), output->second) > this->http_lru_cache_expires) {
+                    this->http_lru_cache->remove(*cache_key);
+                } else {
+                    return output->first;
+                }
+            }
+        }
+
+
+        std::unordered_map<size_t, std::shared_ptr<tcp_client>>::iterator iter = this->clients.find(client.sid);
+        std::shared_ptr<tcp_client> cli;
+        bool is_old = false;
+        if (iter == this->clients.end()) {
+            new_client:
+            for (auto route : *(this->route_locators)) {
+                mongols::upstream_server *upstreamServer = route->choseServer(&req);
+                if (upstreamServer) {
+                    cli = std::make_shared<tcp_client>(upstreamServer->server, upstreamServer->port);
+                    break;
+                }
+            }
+
+            this->server->setnonblocking(cli->socket_fd);
+            this->clients[client.sid] = cli;
+            is_old = false;
+        } else {
+            cli = iter->second;
+            is_old = true;
+        }
+
+        if (cli == nullptr) {
+            return "0";
+        }
+
+        if (cli->ok()) {
+            ssize_t send_ret = cli->send(input.first, input.second);
+            if (send_ret > 0) {
+                // todo 使用epoll
+                // type = 1
+                this->server->add_client(cli->socket_fd, cli->host, cli->port, 1, client.sid, client.socket_fd);
+                return "1";
+            }
+        }
+
+        this->del_up_server(client.sid);
+        if (is_old) {
+            goto new_client;
+        }
+        return "0";
+
+    }
+
     std::string tcp_proxy_server::http_work(const tcp_server::filter_handler_function &f,
                                             const std::function<bool(const mongols::request &)> &g,
                                             const std::pair<char *, size_t> &input, bool &keepalive,
                                             bool &send_to_other, tcp_server::client_t &client,
                                             tcp_server::filter_handler_function &send_to_other_filter) {
-        keepalive = KEEPALIVE_CONNECTION;
-        send_to_other = false;
-        std::shared_ptr<std::string> cache_key;
-        std::shared_ptr<std::pair<std::string, time_t>> output;
-        if (f(client)) {
-            mongols::request &req = client.req;
-            req.client = client.ip;
-            if (g(req)) {
-                goto http_process;
-            } else {
-                goto done;
-            }
-            http_process:
-            std::unordered_map<std::string, std::string>::const_iterator tmp_iterator;
-            if ((tmp_iterator = req.headers.find("Connection")) != req.headers.end()) {
-                if (tmp_iterator->second == "close") {
-                    keepalive = CLOSE_CONNECTION;
-                }
-            } else {
-                keepalive = CLOSE_CONNECTION;
-            }
-            if (this->enable_http_lru_cache && std::strcmp(req.method.c_str(), "GET") == 0) {
-                std::string tmp_str(req.method);
-                tmp_str.append(req.uri);
-                cache_key = std::make_shared<std::string>(std::move(
-                        mongols::md5(req.param.empty() ? tmp_str : tmp_str.append("?").append(req.param))));
-                if (this->http_lru_cache->contains(*cache_key)) {
-                    output = this->http_lru_cache->get(*cache_key);
-                    if (difftime(time(0), output->second) > this->http_lru_cache_expires) {
-                        this->http_lru_cache->remove(*cache_key);
-                    } else {
-                        return output->first;
-                    }
-                }
-            }
 
 
-            std::unordered_map<size_t, std::shared_ptr<tcp_client>>::iterator iter = this->clients.find(client.sid);
-            std::shared_ptr<tcp_client> cli;
-            bool is_old = false;
-            if (iter == this->clients.end()) {
-                new_client:
-                for (auto route : *(this->route_locators)) {
-                    mongols::upstream_server *upstreamServer = route->choseServer(&req);
-                    if (upstreamServer) {
-                        cli = std::make_shared<tcp_client>(upstreamServer->server, upstreamServer->port);
-                        break;
-                    }
-                }
-                this->clients[client.sid] = cli;
-                is_old = false;
-            } else {
-                cli = iter->second;
-                is_old = true;
+        if (client.is_up_server) {
+            // up_server_response
+            std::shared_ptr<tcp_client> up_server = this->clients[client.client_sid];
+            if (up_server == nullptr) {
+                std::cout << "null" << std::endl;
+                return "0";
             }
-
-            if (cli->ok()) {
-                ssize_t send_ret = cli->send(input.first, input.second);
-                if (send_ret > 0) {
-                    mongols::net::Buffer buffer(this->server->get_buffer_size());
-                    ssize_t recv_ret = 0;
-                    mongols::response res;
-                    recv_ret = receiveUpServerData(cli, buffer, res);
-                    if (recv_ret > 0) {
-                        mongols::StringPiece piece = buffer.toStringPiece();
-                        output = std::make_shared<std::pair<std::string, time_t>>();
-                        output->first.assign(piece.data(), piece.size());
-                        output->second = time(0);
-                        auto i = res.headers.find("Connection");
-                        if (i == res.headers.end()) {
-                            this->clients.erase(client.sid);
-                            auto p = output->first.find("\n");
-                            if (p != std::string::npos) {
-                                output->first.insert(p + 1, keepalive == KEEPALIVE_CONNECTION
-                                                            ? "Connection: keep-alive\r\n"
-                                                            : "Connection: close\r\n");
-                            }
-                        } else if (i->second == "close" && keepalive == KEEPALIVE_CONNECTION) {
-                            this->clients.erase(client.sid);
-                            auto p = output->first.find("close");
-                            if (p != std::string::npos) {
-                                output->first.replace(p, 5, "keep-alive");
-                            }
-
-                        } else if (i->second == "keep-alive" && keepalive == CLOSE_CONNECTION) {
-                            keepalive = KEEPALIVE_CONNECTION;
-                            /*auto p = output->first.find("keep-alive");
-                                if (p != std::string::npos) {
-                                    output->first.replace(p, 10, "close");
-                                }*/
-                        }
-
-                        if (res.status == 200 && this->enable_http_lru_cache &&
-                            std::strcmp(req.method.c_str(), "GET") == 0) {
-                            this->http_lru_cache->insert(*cache_key, output);
-                        }
-                        return output->first;
-                    }
-                }
-            }
-            this->clients.erase(client.sid);
-            if (is_old) {
-                goto new_client;
-            }
+            return doResponse(keepalive, client, up_server);
         }
-        done:
-        return this->default_content;
+        return doRequest(f, g, input, keepalive, send_to_other, client, send_to_other_filter);
+
     }
 
     void tcp_proxy_server::set_default_http_content() {
         this->default_content = tcp_proxy_server::DEFAULT_HTTP_CONTENT;
-    }
-
-    ssize_t tcp_proxy_server::receiveUpServerData(const std::shared_ptr<tcp_client> &cli, mongols::net::Buffer &buffer,
-                                                  mongols::response &res) {
-
-        ssize_t ret = 0;
-        ssize_t recv_ret = 0;
-        char temp[this->server->get_buffer_size()];
-        mongols::http_response_parser res_parser(res);
-        again:
-        recv_ret = cli->recv(temp, this->server->get_buffer_size());
-        if (recv_ret > 0) {
-            buffer.append(temp, recv_ret);
-            mongols::StringPiece piece = buffer.toStringPiece();
-            bool result = res_parser.parse(piece.data() + ret, recv_ret);
-            ret += recv_ret;
-
-            if (!result) {
-                ret = 0;
-                buffer.shrink();
-                return ret;
-            }
-
-            if (!res_parser.message_complete()) {
-                goto again;
-            }
-            return ret;
-        }
-        return recv_ret;
     }
 
 
