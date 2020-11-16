@@ -240,7 +240,13 @@ namespace motoro {
                            size_t client_sid = -1,
                            std::shared_ptr<std::string> client_request_id = nullptr,
                            int client_socket_fd = -1) {
-        this->server_epoll->add(fd, EPOLLIN | EPOLLRDHUP | EPOLLET);
+        bool add_result = this->server_epoll->add(fd, EPOLLIN | EPOLLRDHUP | EPOLLET);
+
+        if (!add_result) {
+            // 添加失败,重复了
+            // return false;
+        }
+        // 存在重复插入
         auto pair = this->clients.insert(
                 std::move(std::make_pair(fd, std::move(
                         meta_data_t(ip, port, 0, 0, is_up_server, client_sid, client_request_id, client_socket_fd)))));

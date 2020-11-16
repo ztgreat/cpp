@@ -234,9 +234,9 @@ namespace motoro {
     }
 
 
-    std::string tcp_proxy_server::doResponse(bool &keepalive,
-                                             tcp_server::client_t &client,
-                                             std::shared_ptr<tcp_client> up_server) {
+    std::string tcp_proxy_server::do_response(bool &keepalive,
+                                              tcp_server::client_t &client,
+                                              std::shared_ptr<tcp_client> up_server) {
 
         motoro::response &res = client.res;
         motoro::http_response_parser res_parser(res);
@@ -315,15 +315,13 @@ namespace motoro {
         this->server->clean(fd);
     }
 
-    std::string tcp_proxy_server::doRequest(const tcp_server::filter_handler_function &f,
-                                            const std::function<bool(const motoro::request &)> &g,
-                                            const std::pair<char *, size_t> &input, bool &keepalive,
-                                            bool &send_to_other, tcp_server::client_t &client,
-                                            tcp_server::filter_handler_function &send_to_other_filter) {
+    std::string tcp_proxy_server::do_request(const tcp_server::filter_handler_function &f,
+                                             const std::function<bool(const motoro::request &)> &g,
+                                             const std::pair<char *, size_t> &input, bool &keepalive,
+                                             tcp_server::client_t &client) {
 
 
         keepalive = KEEPALIVE_CONNECTION;
-        send_to_other = false;
         std::shared_ptr<std::string> request_id;
         std::shared_ptr<std::pair<std::string, time_t>> output;
 
@@ -408,8 +406,9 @@ namespace motoro {
             ssize_t send_ret = cli->send(input.first, input.second);
             if (send_ret > 0) {
                 // todo 使用epoll
-                this->server->add_client(cli->socket_fd, cli->host, cli->port, true, client.client_sid, request_id,
-                                         client.socket_fd);
+                // 重复添加检测
+                    this->server->add_client(cli->socket_fd, cli->host, cli->port, true, client.client_sid, request_id,
+                                             client.socket_fd);
                 return "1";
             }
         }
@@ -442,9 +441,9 @@ namespace motoro {
                 std::cout << "up_server: null" << std::endl;
                 return "0";
             }
-            return doResponse(keepalive, client, up_server);
+            return do_response(keepalive, client, up_server);
         }
-        return doRequest(f, g, input, keepalive, send_to_other, client, send_to_other_filter);
+        return do_request(f, g, input, keepalive, client);
 
     }
 

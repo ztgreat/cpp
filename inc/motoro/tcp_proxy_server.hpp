@@ -102,15 +102,14 @@ namespace motoro {
 
         void cleanHttpContext(int &fd);
 
-        std::string doResponse(bool &keepalive,
+        std::string do_response(bool &keepalive,
                                tcp_server::client_t &client,
                                std::shared_ptr<tcp_client>);
 
-        std::string doRequest(const tcp_server::filter_handler_function &f,
+        std::string do_request(const tcp_server::filter_handler_function &f,
                               const std::function<bool(const motoro::request &)> &g,
                               const std::pair<char *, size_t> &input, bool &keepalive,
-                              bool &send_to_other, tcp_server::client_t &client,
-                              tcp_server::filter_handler_function &send_to_other_filter);
+                              tcp_server::client_t &client);
 
         std::string
         http_work(const tcp_server::filter_handler_function &, const std::function<bool(const motoro::request &)> &,
