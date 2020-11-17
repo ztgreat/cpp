@@ -86,6 +86,6 @@ int main(int, char **) {
     };
 
 //    motoro::multi_process main_process;
-//    main_process.run(ff, g, std::thread::hardware_concurrency() / 2);
+//    main_process.run(ff, g, std::thread::hardware_concurrency());
 }
 
