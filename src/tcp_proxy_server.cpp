@@ -9,6 +9,7 @@
 #include <motoro/util.hpp>
 #include <motoro/upstream_server.hpp>
 #include <cstring>
+#include <utility>
 
 #include "motoro/http_request_parser.hpp"
 #include "motoro/http_response_parser.hpp"
@@ -18,8 +19,8 @@
 
 namespace motoro {
 
-    tcp_client::tcp_client(const std::string &host, int port)
-            : host(host), port(port), socket_fd(-1), server_addr(), server(0) {
+    tcp_client::tcp_client(std::string host, int port)
+            : host(std::move(host)), port(port), socket_fd(-1), server_addr(), server(0) {
         this->init();
     }
 
@@ -78,18 +79,12 @@ namespace motoro {
     std::string tcp_proxy_server::DEFAULT_TCP_CONTENT = "close";
 
     tcp_proxy_server::tcp_proxy_server(const std::string &host, int port, int timeout, size_t buffer_size,
-                                       size_t thread_size, int max_event_size)
+                                       int max_event_size)
             : http_lru_cache_size(1024), http_lru_cache_expires(300),
-              enable_http_lru_cache(false), enable_tcp_send_to_other(true), server(0), clients(),
+              enable_http_lru_cache(false), server(0), clients(),
               default_content(tcp_proxy_server::DEFAULT_TCP_CONTENT), http_lru_cache(0) {
-
         this->route_locators = new std::vector<motoro::route_locator *>();
-
-        if (thread_size > 0) {
-            this->server = new tcp_threading_server(host, port, timeout, buffer_size, thread_size, max_event_size);
-        } else {
-            this->server = new tcp_server(host, port, timeout, buffer_size, max_event_size);
-        }
+        this->server = new tcp_server(host, port, timeout, buffer_size, max_event_size);
     }
 
     tcp_proxy_server::~tcp_proxy_server() {
@@ -154,36 +149,11 @@ namespace motoro {
         this->http_lru_cache_expires = expires;
     }
 
-    void tcp_proxy_server::set_enable_blacklist(bool b) {
-        this->server->set_enable_blacklist(b);
-    }
-
-    void tcp_proxy_server::set_enable_whitelist(bool b) {
-        this->server->set_enable_whitelist(b);
-    }
-
-    void tcp_proxy_server::set_whitelist(const std::string &ip) {
-        this->server->set_whitelist(ip);
-    }
-
-    void tcp_proxy_server::del_whitelist(const std::string &ip) {
-        this->server->del_whitelist(ip);
-    }
-
-    void tcp_proxy_server::set_whitelist_file(const std::string &path) {
-        this->server->set_whitelist_file(path);
-    }
-
-    void tcp_proxy_server::set_enable_tcp_send_to_other(bool b) {
-        this->enable_tcp_send_to_other = b;
-    }
-
     std::string
     tcp_proxy_server::work(const tcp_server::filter_handler_function &f, const std::pair<char *, size_t> &input,
                            bool &keepalive, bool &send_to_other, tcp_server::client_t &client,
                            tcp_server::filter_handler_function &send_to_other_filter) {
         keepalive = KEEPALIVE_CONNECTION;
-        send_to_other = this->enable_tcp_send_to_other;
         if (f(client)) {
 
             std::unordered_map<std::string, std::shared_ptr<tcp_client>>::iterator iter = this->clients.find(
@@ -407,8 +377,8 @@ namespace motoro {
             if (send_ret > 0) {
                 // todo 使用epoll
                 // 重复添加检测
-                    this->server->add_client(cli->socket_fd, cli->host, cli->port, true, client.client_sid, request_id,
-                                             client.socket_fd);
+                this->server->add_client(cli->socket_fd, cli->host, cli->port, true, client.client_sid, request_id,
+                                         client.socket_fd);
                 return "1";
             }
         }
@@ -450,7 +420,6 @@ namespace motoro {
     void tcp_proxy_server::set_default_http_content() {
         this->default_content = tcp_proxy_server::DEFAULT_HTTP_CONTENT;
     }
-
 
     void tcp_proxy_server::set_shutdown(const tcp_server::shutdown_function &f) {
         this->server->set_shutdown(f);

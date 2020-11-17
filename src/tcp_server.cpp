@@ -5,21 +5,14 @@
 #include <sys/signal.h>
 #include <sys/socket.h>
 #include <unistd.h>
-#include <limits.h>
-#include <cstdlib>
 #include <cstring>
 
-#include <algorithm>
 #include <atomic>
-#include <fstream>
 #include <functional>
 #include <string>
 #include <thread>
 #include <vector>
 #include <motoro/Buffer.h>
-#include <motoro/request.hpp>
-#include <motoro/http_request_parser.hpp>
-#include "re2/re2.h"
 #include "tcp_server.hpp"
 #include "util.hpp"
 
@@ -27,9 +20,7 @@ namespace motoro {
 
     std::atomic_bool tcp_server::done(true);
     int tcp_server::backlog = 511;
-    size_t tcp_server::backlist_size = 1024;
     size_t tcp_server::max_connection_limit = 30;
-    size_t tcp_server::backlist_timeout = 24 * 60 * 60;
     size_t tcp_server::max_send_limit = 5;
     size_t tcp_server::max_connection_keepalive = 60;
 
@@ -42,9 +33,7 @@ namespace motoro {
     tcp_server::tcp_server(const std::string &host, int port, int timeout, size_t buffer_size, int max_event_size)
             : host(host), port(port), listenfd(0), max_event_size(max_event_size), server_is_ok(false), server_hints(),
               cleaning_fun(), whitelist_inotify(), server_epoll(0), buffer_size(buffer_size), thread_size(0), sid(0),
-              timeout(timeout), sid_queue(), clients(), work_pool(0), blacklist(tcp_server::backlist_size), whitelist(),
-              enable_blacklist(false),
-              enable_whitelist(false) {
+              timeout(timeout), sid_queue(), clients(), work_pool(0) {
 
         memset(&this->server_hints, 0, sizeof(this->server_hints));
         this->server_hints.ai_family = AF_UNSPEC;
@@ -123,10 +112,6 @@ namespace motoro {
             : client(ip, port, uid, gid, is_up_server, client_sid, client_request_id, client_socket_fd) {
     }
 
-    tcp_server::black_ip_t::black_ip_t()
-            : t(time(0)), count(1), disallow(false) {
-    }
-
     void tcp_server::run(const handler_function &g) {
         if (!this->server_is_ok) {
             perror("server error");
@@ -174,60 +159,6 @@ namespace motoro {
 
     void tcp_server::set_shutdown(const shutdown_function &f) {
         this->cleaning_fun = f;
-    }
-
-    void tcp_server::set_whitelist(const std::string &ip) {
-        this->whitelist.push_back(ip);
-    }
-
-    void tcp_server::del_whitelist(const std::string &ip) {
-        this->whitelist.remove(ip);
-    }
-
-    bool tcp_server::read_whitelist_file(const std::string &path) {
-        if (motoro::is_file(path)) {
-            this->whitelist.clear();
-            std::ifstream input(path);
-            if (input) {
-                std::string line;
-                while (std::getline(input, line)) {
-                    motoro::trim(std::ref(line));
-                    if (!line.empty() && line.front() != '#') {
-                        this->whitelist.push_back(line);
-                    }
-                }
-                return true;
-            }
-        }
-        return false;
-    }
-
-    void tcp_server::set_whitelist_file(const std::string &path) {
-        char path_buffer[PATH_MAX];
-        char *tmp = realpath(path.c_str(), path_buffer);
-        std::string real_path;
-        if (tmp) {
-            real_path = tmp;
-        } else {
-            return;
-        }
-        size_t p = real_path.find_last_of('/');
-        std::string dir = real_path.substr(0, p), file_name = real_path.substr(p + 1);
-        if (this->read_whitelist_file(real_path)) {
-            this->whitelist_inotify = std::make_shared<inotify>(dir);
-            if (this->whitelist_inotify->get_fd() < 0) {
-                this->whitelist_inotify.reset();
-            } else {
-                this->whitelist_inotify->set_cb([&, real_path, file_name](struct inotify_event *event) {
-                    if (event->len > 0) {
-                        if (strncmp(event->name, file_name.c_str(), event->len) == 0 &&
-                            event->mask & this->whitelist_inotify->get_mask()) {
-                            this->read_whitelist_file(real_path);
-                        }
-                    }
-                });
-            }
-        }
     }
 
     void tcp_server::setnonblocking(int fd) {
@@ -282,53 +213,6 @@ namespace motoro {
         this->clients[fd].client.buffer.shrink();
         this->clients[fd].client.req.clean();
         this->clients[fd].client.res.clean();
-    }
-
-    bool tcp_server::send_to_all_client(int fd, const std::string &str, const filter_handler_function &h) {
-        for (auto i = this->clients.begin(); i != this->clients.end();) {
-            if (i->first != fd && h(i->second.client) &&
-
-                send(i->first, str.c_str(), str.size(), MSG_NOSIGNAL) < 0) {
-                this->del_client(i->first);
-            } else {
-                ++i;
-            }
-        }
-        return false;
-    }
-
-    bool tcp_server::check_blacklist(const std::string &ip) {
-        std::shared_ptr<black_ip_t> black_ip;
-        if (this->blacklist.tryGet(ip, black_ip)) {
-            double diff = difftime(time(0), black_ip->t);
-            if (black_ip->disallow) {
-                if (diff < tcp_server::backlist_timeout) {
-                    return false;
-                } else {
-                    black_ip->disallow = false;
-                    black_ip->count = 1;
-                    black_ip->t = time(0);
-                }
-            }
-
-            if ((diff == 0 && black_ip->count > tcp_server::max_connection_limit)
-                || (diff > 0 && black_ip->count / diff > tcp_server::max_connection_limit)) {
-                black_ip->t = time(0);
-                black_ip->disallow = true;
-                return false;
-            } else {
-                black_ip->count++;
-            }
-        } else {
-            this->blacklist.insert(ip, std::make_shared<black_ip_t>());
-        }
-        return true;
-    }
-
-    bool tcp_server::check_whitelist(const std::string &ip) {
-        return std::find_if(this->whitelist.begin(), this->whitelist.end(), [&](const std::string &v) {
-            return re2::RE2::FullMatch(ip, v);
-        }) != this->whitelist.end();
     }
 
     bool tcp_server::work(int fd, const handler_function &g) {
@@ -393,16 +277,9 @@ namespace motoro {
                     this->setnonblocking(connfd);
 
                     if (!this->get_client_address(&clientaddr, clientip, clientport)) {
-                        goto accept_error;
-                    }
-                    if (this->enable_blacklist && !this->check_blacklist(clientip)) {
-                        accept_error:
                         shutdown(connfd, SHUT_RDWR);
                         close(connfd);
                         break;
-                    }
-                    if (this->enable_whitelist && !this->check_whitelist(clientip)) {
-                        goto accept_error;
                     }
                     if (!this->add_client(connfd, clientip, clientport)) {
                         this->del_client(connfd);
@@ -444,14 +321,5 @@ namespace motoro {
             }
         }
         return false;
-    }
-
-
-    void tcp_server::set_enable_blacklist(bool b) {
-        this->enable_blacklist = b;
-    }
-
-    void tcp_server::set_enable_whitelist(bool b) {
-        this->enable_whitelist = b;
     }
 }

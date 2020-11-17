@@ -14,7 +14,7 @@ int main(int, char **) {
     const std::string host = config["server.host"].as<std::string>();
     int port = config["server.port"].as<std::int32_t>();
 
-    motoro::tcp_proxy_server server(host, port, 5000, 8192, 0);
+    motoro::tcp_proxy_server server(host, port, 5000, 8192);
     server.set_enable_http_lru_cache(false);
     //server.set_http_lru_cache_expires(1);
     server.set_default_http_content();
@@ -63,8 +63,6 @@ int main(int, char **) {
         server.add_route_locators(routeLocator);
     }
 
-
-    //    daemon(1, 0);
     auto f = [](const motoro::tcp_server::client_t &client) {
         return true;
     };
@@ -73,8 +71,7 @@ int main(int, char **) {
         return true;
     };
 
-
-    server.run(f, h);
+//    server.run(f, h);
 
     std::function<void(pthread_mutex_t *, size_t *)> ff = [&](pthread_mutex_t *mtx, size_t *data) {
         server.run(f, h);
@@ -85,7 +82,7 @@ int main(int, char **) {
         return false;
     };
 
-//    motoro::multi_process main_process;
-//    main_process.run(ff, g, std::thread::hardware_concurrency());
+    motoro::multi_process main_process;
+    main_process.run(ff, g, std::thread::hardware_concurrency());
 }
 

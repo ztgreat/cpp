@@ -97,22 +97,10 @@ namespace motoro {
 
         size_t get_buffer_size() const;
 
-        void set_enable_blacklist(bool);
-
-        void set_enable_whitelist(bool);
-
         void set_shutdown(const shutdown_function &);
 
-        virtual void set_whitelist(const std::string &);
-
-        virtual void del_whitelist(const std::string &);
-
-        void set_whitelist_file(const std::string &);
-
         static int backlog;
-        static size_t backlist_size;
         static size_t max_connection_limit;
-        static size_t backlist_timeout;
 
         static size_t max_send_limit;
         static size_t max_connection_keepalive;
@@ -148,17 +136,6 @@ namespace motoro {
             client_t client;
         };
 
-        class black_ip_t {
-        public:
-            black_ip_t();
-
-            virtual ~black_ip_t() = default;
-
-            time_t t;
-            size_t count;
-            bool disallow;
-        };
-
         motoro::epoll *server_epoll;
         size_t buffer_size, thread_size, sid;
         int timeout;
@@ -166,21 +143,7 @@ namespace motoro {
         std::unordered_map<int, meta_data_t> clients;
         motoro::thread_pool<std::function<bool()>> *work_pool;
 
-        lru11::Cache<std::string, std::shared_ptr<black_ip_t>> blacklist;
-        std::list<std::string> whitelist;
-
-        bool enable_blacklist, enable_whitelist;
-
-        virtual bool send_to_all_client(int, const std::string &, const filter_handler_function &);
-
         virtual bool work(int, const handler_function &);
-
-        virtual bool check_blacklist(const std::string &);
-
-        virtual bool check_whitelist(const std::string &);
-
-        virtual bool read_whitelist_file(const std::string &);
-
     };
 }
 
