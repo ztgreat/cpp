@@ -79,13 +79,13 @@ namespace motoro {
     std::string tcp_proxy_server::DEFAULT_TCP_CONTENT = "close";
 
     tcp_proxy_server::tcp_proxy_server(const std::string &host, int port, int timeout, size_t buffer_size,
-                                       short mode,
+                                       motoro::tcp_server::connection_t mode,
                                        int max_event_size)
             : http_lru_cache_size(1024), http_lru_cache_expires(300),
               enable_http_lru_cache(false), server(0), mode(mode), clients(),
               default_content(tcp_proxy_server::DEFAULT_TCP_CONTENT), http_lru_cache(0) {
         this->route_locators = new std::vector<motoro::route_locator *>();
-        this->server = new tcp_server(host, port, timeout, buffer_size, max_event_size);
+        this->server = new tcp_server(host, port, timeout, buffer_size, max_event_size, mode);
     }
 
     tcp_proxy_server::~tcp_proxy_server() {
@@ -112,6 +112,11 @@ namespace motoro {
         f = std::bind(&tcp_proxy_server::tcp_work, this, std::cref(g), std::placeholders::_1, std::placeholders::_2,
                       std::placeholders::_3, std::placeholders::_4, std::placeholders::_5);
 
+        auto fc = std::bind(&tcp_proxy_server::socket_close_func, this,
+                            std::placeholders::_1);
+
+        this->server->set_socket_close_function(fc);
+
         this->server->run(f);
     }
 
@@ -124,7 +129,6 @@ namespace motoro {
 
         tcp_server::handler_function ff;
 
-
         if (this->mode == motoro::tcp_server::connection_t::TCP) {
             ff = std::bind(&tcp_proxy_server::tcp_work, this, std::cref(f),
                            std::placeholders::_1, std::placeholders::_2, std::placeholders::_3,
@@ -135,6 +139,11 @@ namespace motoro {
                            std::placeholders::_4, std::placeholders::_5);
         }
 
+        auto fc = std::bind(&tcp_proxy_server::socket_close_func, this,
+                            std::placeholders::_1);
+
+
+        this->server->set_socket_close_function(fc);
 
         this->server->run(ff);
     }
@@ -197,10 +206,11 @@ namespace motoro {
 
         std::hash<string> hash;
         request_id = std::make_shared<std::string>(std::move(
-                std::to_string(client.port)));
+                std::to_string(client.sid)));
 
         auto iter = this->clients.find(*request_id);
-        std::cout << client.port << ":" + std::to_string(this->clients.size()) << std::endl;
+        //std::cout << "TCP: " << "client.sid:" << client.sid << ",client.port:" << client.port
+        //          << ",up.server.size:" + std::to_string(this->clients.size()) << std::endl;
         std::shared_ptr<tcp_client> cli;
         bool is_old = false;
         if (iter == this->clients.end()) {
@@ -218,7 +228,7 @@ namespace motoro {
             }
             this->server->setnonblocking(cli->socket_fd);
             this->clients[*request_id] = cli;
-            //this->fd_to_clients[cli->socket_fd] = request_id;
+            this->fd_to_upServer[cli->socket_fd] = request_id;
             is_old = false;
         } else {
             cli = iter->second;
@@ -233,8 +243,6 @@ namespace motoro {
         if (cli->ok()) {
             ssize_t send_ret = cli->send(input.first, input.second);
             if (send_ret > 0) {
-                // todo 使用epoll
-                // 重复添加检测
                 this->server->add_client(cli->socket_fd, cli->host, cli->port, true,
                                          client.client_sid,
                                          request_id,
@@ -259,8 +267,8 @@ namespace motoro {
 
         size_t ret = send(client.client_socket_fd, piece.data(), piece.size(), MSG_NOSIGNAL);
 
-        this->cleanHttpContext(client.client_socket_fd);
-        this->cleanHttpContext(up_server->socket_fd);
+        this->clean_request_context(client.client_socket_fd);
+        this->clean_request_context(up_server->socket_fd);
         if (ret <= 0) {
             this->del_up_server(client.client_request_id);
             return "0";
@@ -278,8 +286,8 @@ namespace motoro {
         bool success = res_parser.parse(piece.data(), piece.size());
         if (!success) {
             // 没解析成功，包错误
-            this->cleanHttpContext(client.client_socket_fd);
-            this->cleanHttpContext(up_server->socket_fd);
+            this->clean_request_context(client.client_socket_fd);
+            this->clean_request_context(up_server->socket_fd);
             this->del_up_server(client.client_request_id);
             return "0";
         }
@@ -320,8 +328,8 @@ namespace motoro {
 
         size_t ret = send(client.client_socket_fd, output->first.c_str(), output->first.size(), MSG_NOSIGNAL);
 
-        this->cleanHttpContext(client.client_socket_fd);
-        this->cleanHttpContext(up_server->socket_fd);
+        this->clean_request_context(client.client_socket_fd);
+        this->clean_request_context(up_server->socket_fd);
 
         if (ret <= 0) {
             this->del_up_server(client.client_request_id);
@@ -343,11 +351,23 @@ namespace motoro {
         }
         this->server->del_client(cli->socket_fd);
         this->clients.erase(*client_request_id);
+        this->fd_to_upServer.erase(cli->socket_fd);
         shutdown(cli->socket_fd, SHUT_RDWR);
         close(cli->socket_fd);
     }
 
-    void tcp_proxy_server::cleanHttpContext(int &fd) {
+    void tcp_proxy_server::socket_close_func(int fd) {
+        std::shared_ptr<std::string> upServerId = this->fd_to_upServer[fd];
+        if (upServerId == nullptr) {
+            return;
+        }
+        this->clients.erase(*upServerId);
+        this->fd_to_upServer.erase(fd);
+        //shutdown(fd, SHUT_RDWR);
+        //close(fd);
+    }
+
+    void tcp_proxy_server::clean_request_context(int fd) {
         if (fd <= 0) {
             return;
         }
@@ -395,7 +415,8 @@ namespace motoro {
             keepalive = CLOSE_CONNECTION;
         }
         std::string tmp_str(req.method + req.uri + std::to_string(client.sid));
-        //std::cout << client.port << ":" + std::to_string(this->clients.size()) << std::endl;
+        //std::cout << "HTTP: " << "client.sid:" << client.sid << ",client.port:" << client.port
+        //          << ",up.server.size:" + std::to_string(this->clients.size()) << std::endl;
         // todo 路由需要注意这里是否支持
         std::hash<string> hash;
         request_id = std::make_shared<std::string>(std::move(
@@ -444,8 +465,6 @@ namespace motoro {
         if (cli->ok()) {
             ssize_t send_ret = cli->send(input.first, input.second);
             if (send_ret > 0) {
-                // todo 使用epoll
-                // 重复添加检测
                 this->server->add_client(cli->socket_fd, cli->host, cli->port, true, client.client_sid, request_id,
                                          client.socket_fd);
                 return "1";

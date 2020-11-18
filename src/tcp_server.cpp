@@ -30,8 +30,10 @@ namespace motoro {
         tcp_server::done = false;
     }
 
-    tcp_server::tcp_server(const std::string &host, int port, int timeout, size_t buffer_size, int max_event_size)
-            : host(host), port(port), listenfd(0), max_event_size(max_event_size), server_is_ok(false), server_hints(),
+    tcp_server::tcp_server(const std::string &host, int port, int timeout, size_t buffer_size, int max_event_size,
+                           connection_t mode)
+            : host(host), port(port), listenfd(0), max_event_size(max_event_size), mode(mode), server_is_ok(false),
+              server_hints(),
               cleaning_fun(), whitelist_inotify(), server_epoll(0), buffer_size(buffer_size), thread_size(0), sid(0),
               timeout(timeout), sid_queue(), clients(), work_pool(0) {
 
@@ -161,6 +163,10 @@ namespace motoro {
         this->cleaning_fun = f;
     }
 
+    void tcp_server::set_socket_close_function(const tcp_server::socket_close_function &func) {
+        this->socket_close_func = func;
+    }
+
     void tcp_server::setnonblocking(int fd) {
         int flags = fcntl(fd, F_GETFL, 0);
         fcntl(fd, F_SETFL, flags | O_NONBLOCK);
@@ -171,7 +177,14 @@ namespace motoro {
                            size_t client_sid = -1,
                            std::shared_ptr<std::string> client_request_id = nullptr,
                            int client_socket_fd = -1) {
-        bool add_result = this->server_epoll->add(fd, EPOLLIN | EPOLLRDHUP | EPOLLET);
+
+
+        bool add_result;
+        if (this->mode == connection_t::HTTP) {
+            add_result = this->server_epoll->add(fd, EPOLLIN | EPOLLRDHUP | EPOLLET);
+        } else {
+            add_result = this->server_epoll->add(fd, EPOLLIN | EPOLLRDHUP);
+        }
 
         if (!add_result) {
             // 添加失败,重复了
@@ -182,8 +195,7 @@ namespace motoro {
                 std::move(std::make_pair(fd, std::move(
                         meta_data_t(ip, port, 0, 0, is_up_server, client_sid, client_request_id, client_socket_fd)))));
         if (this->sid_queue.empty()) {
-            // todo 溢出风险
-            pair.first->second.client.sid = ++this->sid;
+            pair.first->second.client.sid = this->sid = ((this->sid + 1) & SIZE_MAX);
         } else {
             pair.first->second.client.sid = this->sid_queue.front();
             this->sid_queue.pop();
@@ -204,6 +216,10 @@ namespace motoro {
         this->clients.erase(fd);
         shutdown(fd, SHUT_RDWR);
         close(fd);
+
+        if (this->socket_close_func) {
+            this->socket_close_func(fd);
+        }
     }
 
     void tcp_server::clean(int fd) {

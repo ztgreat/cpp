@@ -49,7 +49,7 @@ namespace motoro {
         tcp_proxy_server() = delete;
 
         tcp_proxy_server(const std::string &host, int port, int timeout = 5000, size_t buffer_size = 8192,
-                         short mode = 1,
+                         motoro::tcp_server::connection_t mode = motoro::tcp_server::connection_t::HTTP,
                          int max_event_size = 64);
 
         virtual ~tcp_proxy_server();
@@ -73,13 +73,14 @@ namespace motoro {
         void add_route_locators(motoro::route_locator *);
 
     private:
-        short mode;
+        motoro::tcp_server::connection_t mode;
         size_t http_lru_cache_size;
         long long http_lru_cache_expires;
         bool enable_http_lru_cache;
         tcp_server *server;
         std::vector<route_locator *> *route_locators;
         std::unordered_map<std::string, std::shared_ptr<tcp_client>> clients;
+        std::unordered_map<size_t, std::shared_ptr<std::string>> fd_to_upServer;
         std::string default_content;
         lru11::Cache<std::string, std::shared_ptr<std::pair<std::string, time_t>>> *http_lru_cache;
 
@@ -90,7 +91,10 @@ namespace motoro {
 
         void del_up_server(std::shared_ptr<std::string> client_request_id);
 
-        void cleanHttpContext(int &fd);
+        void socket_close_func(int fd);
+
+        void clean_request_context(int fd);
+
 
         std::string do_tcp_request(const tcp_server::filter_handler_function &f,
                                    const std::pair<char *, size_t> &input, bool &keepalive,

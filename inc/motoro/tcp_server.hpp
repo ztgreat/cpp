@@ -72,13 +72,15 @@ namespace motoro {
                 handler_function;
         typedef std::function<void(void)> shutdown_function;
 
+        typedef std::function<void(int)> socket_close_function;
+
         static setsockopt_function setsockopt_cb;
 
     public:
         tcp_server() = delete;
 
         tcp_server(const std::string &host, int port, int timeout = 5000, size_t buffer_size = 8192,
-                   int max_event_size = 64);
+                   int max_event_size = 64, connection_t mode = connection_t::HTTP);
 
         virtual ~tcp_server();
 
@@ -99,6 +101,8 @@ namespace motoro {
 
         void set_shutdown(const shutdown_function &);
 
+        void set_socket_close_function(const tcp_server::socket_close_function &func);
+
         static int backlog;
         static size_t max_connection_limit;
 
@@ -107,10 +111,12 @@ namespace motoro {
 
     private:
         std::string host;
+        connection_t mode;
         int port, listenfd, max_event_size;
         bool server_is_ok;
         struct addrinfo server_hints;
         shutdown_function cleaning_fun;
+        socket_close_function socket_close_func;
         std::shared_ptr<inotify> whitelist_inotify;
         static std::atomic_bool done;
 
