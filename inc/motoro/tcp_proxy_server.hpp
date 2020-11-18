@@ -49,6 +49,7 @@ namespace motoro {
         tcp_proxy_server() = delete;
 
         tcp_proxy_server(const std::string &host, int port, int timeout = 5000, size_t buffer_size = 8192,
+                         short mode = 1,
                          int max_event_size = 64);
 
         virtual ~tcp_proxy_server();
@@ -72,6 +73,7 @@ namespace motoro {
         void add_route_locators(motoro::route_locator *);
 
     private:
+        short mode;
         size_t http_lru_cache_size;
         long long http_lru_cache_expires;
         bool enable_http_lru_cache;
@@ -81,22 +83,32 @@ namespace motoro {
         std::string default_content;
         lru11::Cache<std::string, std::shared_ptr<std::pair<std::string, time_t>>> *http_lru_cache;
 
-        std::string work(const tcp_server::filter_handler_function &, const std::pair<char *, size_t> &, bool &, bool &,
-                         tcp_server::client_t &, tcp_server::filter_handler_function &);
+        std::string
+        tcp_work(const tcp_server::filter_handler_function &, const std::pair<char *, size_t> &, bool &, bool &,
+                 tcp_server::client_t &, tcp_server::filter_handler_function &);
 
 
         void del_up_server(std::shared_ptr<std::string> client_request_id);
 
         void cleanHttpContext(int &fd);
 
-        std::string do_response(bool &keepalive,
-                                tcp_server::client_t &client,
-                                std::shared_ptr<tcp_client>);
+        std::string do_tcp_request(const tcp_server::filter_handler_function &f,
+                                   const std::pair<char *, size_t> &input, bool &keepalive,
+                                   tcp_server::client_t &client);
 
-        std::string do_request(const tcp_server::filter_handler_function &f,
-                               const std::function<bool(const motoro::request &)> &g,
-                               const std::pair<char *, size_t> &input, bool &keepalive,
-                               tcp_server::client_t &client);
+
+        std::string do_tcp_response(bool &keepalive,
+                                    tcp_server::client_t &client,
+                                    std::shared_ptr<tcp_client>);
+
+        std::string do_http_response(bool &keepalive,
+                                     tcp_server::client_t &client,
+                                     std::shared_ptr<tcp_client>);
+
+        std::string do_http_request(const tcp_server::filter_handler_function &f,
+                                    const std::function<bool(const motoro::request &)> &g,
+                                    const std::pair<char *, size_t> &input, bool &keepalive,
+                                    tcp_server::client_t &client);
 
         std::string
         http_work(const tcp_server::filter_handler_function &, const std::function<bool(const motoro::request &)> &,

@@ -14,7 +14,7 @@ int main(int, char **) {
     const std::string host = config["server.host"].as<std::string>();
     int port = config["server.port"].as<std::int32_t>();
 
-    motoro::tcp_proxy_server server(host, port, 5000, 8192);
+    motoro::tcp_proxy_server server(host, port, 5000, 8192, motoro::tcp_server::connection_t::HTTP);
     server.set_enable_http_lru_cache(false);
     //server.set_http_lru_cache_expires(1);
     server.set_default_http_content();
@@ -71,7 +71,7 @@ int main(int, char **) {
         return true;
     };
 
-//    server.run(f, h);
+    server.run(f, h);
 
     std::function<void(pthread_mutex_t *, size_t *)> ff = [&](pthread_mutex_t *mtx, size_t *data) {
         server.run(f, h);

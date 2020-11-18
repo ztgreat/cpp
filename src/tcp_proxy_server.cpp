@@ -79,9 +79,10 @@ namespace motoro {
     std::string tcp_proxy_server::DEFAULT_TCP_CONTENT = "close";
 
     tcp_proxy_server::tcp_proxy_server(const std::string &host, int port, int timeout, size_t buffer_size,
+                                       short mode,
                                        int max_event_size)
             : http_lru_cache_size(1024), http_lru_cache_expires(300),
-              enable_http_lru_cache(false), server(0), clients(),
+              enable_http_lru_cache(false), server(0), mode(mode), clients(),
               default_content(tcp_proxy_server::DEFAULT_TCP_CONTENT), http_lru_cache(0) {
         this->route_locators = new std::vector<motoro::route_locator *>();
         this->server = new tcp_server(host, port, timeout, buffer_size, max_event_size);
@@ -108,7 +109,7 @@ namespace motoro {
 
         tcp_server::handler_function f;
 
-        f = std::bind(&tcp_proxy_server::work, this, std::cref(g), std::placeholders::_1, std::placeholders::_2,
+        f = std::bind(&tcp_proxy_server::tcp_work, this, std::cref(g), std::placeholders::_1, std::placeholders::_2,
                       std::placeholders::_3, std::placeholders::_4, std::placeholders::_5);
 
         this->server->run(f);
@@ -121,9 +122,19 @@ namespace motoro {
                     this->http_lru_cache_size);
         }
 
-        tcp_server::handler_function ff = std::bind(&tcp_proxy_server::http_work, this, std::cref(f), std::cref(g),
-                                                    std::placeholders::_1, std::placeholders::_2, std::placeholders::_3,
-                                                    std::placeholders::_4, std::placeholders::_5);
+        tcp_server::handler_function ff;
+
+
+        if (this->mode == motoro::tcp_server::connection_t::TCP) {
+            ff = std::bind(&tcp_proxy_server::tcp_work, this, std::cref(f),
+                           std::placeholders::_1, std::placeholders::_2, std::placeholders::_3,
+                           std::placeholders::_4, std::placeholders::_5);
+        } else {
+            ff = std::bind(&tcp_proxy_server::http_work, this, std::cref(f), std::cref(g),
+                           std::placeholders::_1, std::placeholders::_2, std::placeholders::_3,
+                           std::placeholders::_4, std::placeholders::_5);
+        }
+
 
         this->server->run(ff);
     }
@@ -150,63 +161,116 @@ namespace motoro {
     }
 
     std::string
-    tcp_proxy_server::work(const tcp_server::filter_handler_function &f, const std::pair<char *, size_t> &input,
-                           bool &keepalive, bool &send_to_other, tcp_server::client_t &client,
-                           tcp_server::filter_handler_function &send_to_other_filter) {
+    tcp_proxy_server::tcp_work(const tcp_server::filter_handler_function &f, const std::pair<char *, size_t> &input,
+                               bool &keepalive, bool &send_to_other, tcp_server::client_t &client,
+                               tcp_server::filter_handler_function &send_to_other_filter) {
         keepalive = KEEPALIVE_CONNECTION;
-        if (f(client)) {
-
-            std::unordered_map<std::string, std::shared_ptr<tcp_client>>::iterator iter = this->clients.find(
-                    client.sid + "");
-            std::shared_ptr<tcp_client> cli;
-            bool is_old = false;
-            if (iter == this->clients.end()) {
-                new_client:
-                for (auto route : *(this->route_locators)) {
-                    motoro::upstream_server *upstreamServer = route->choseServer(nullptr);
-                    if (upstreamServer) {
-                        cli = std::make_shared<tcp_client>(upstreamServer->server, upstreamServer->port);
-                        break;
-                    }
-                }
-                if (cli == nullptr) {
-                    std::cout << "tcp_proxy_server.work.cli: not found up server" << std::endl;
-                    return "0";
-                }
-                this->clients[client.sid + ""] = cli;
-                is_old = false;
-            } else {
-                cli = iter->second;
-                is_old = true;
-            }
-
-            if (cli == nullptr) {
-                std::cout << "tcp_proxy_server.work.cli: null" << std::endl;
+        if (client.is_up_server) {
+            if (client.client_request_id == nullptr) {
+                std::cout << "tcp.client.client_request_id: null" << std::endl;
                 return "0";
             }
-
-            if (cli->ok()) {
-                ssize_t ret = cli->send(input.first, input.second);
-                if (ret > 0) {
-                    char buffer[this->server->get_buffer_size()];
-                    ret = cli->recv(buffer, this->server->get_buffer_size());
-                    if (ret > 0) {
-                        return std::string(buffer, ret);
-                    }
-                }
+            // up_server_response
+            std::shared_ptr<tcp_client> up_server = this->clients[*client.client_request_id];
+            if (up_server == nullptr) {
+                std::cout << "up_server: null" << std::endl;
+                return "0";
             }
-            this->clients.erase(client.sid + "");
-            if (is_old) {
-                goto new_client;
-            }
+            return do_tcp_response(keepalive, client, up_server);
         }
-        return this->default_content;
+        return do_tcp_request(f, input, keepalive, client);
     }
 
 
-    std::string tcp_proxy_server::do_response(bool &keepalive,
-                                              tcp_server::client_t &client,
-                                              std::shared_ptr<tcp_client> up_server) {
+    std::string tcp_proxy_server::do_tcp_request(const tcp_server::filter_handler_function &f,
+                                                 const std::pair<char *, size_t> &input, bool &keepalive,
+                                                 tcp_server::client_t &client) {
+
+
+        keepalive = KEEPALIVE_CONNECTION;
+        std::shared_ptr<std::string> request_id;
+        std::shared_ptr<std::pair<std::string, time_t>> output;
+
+        if (!f(client)) {
+            return "0";
+        }
+
+        std::hash<string> hash;
+        request_id = std::make_shared<std::string>(std::move(
+                std::to_string(client.port)));
+
+        auto iter = this->clients.find(*request_id);
+        std::cout << client.port << ":" + std::to_string(this->clients.size()) << std::endl;
+        std::shared_ptr<tcp_client> cli;
+        bool is_old = false;
+        if (iter == this->clients.end()) {
+            new_client:
+            for (auto route : *(this->route_locators)) {
+                motoro::upstream_server *upstreamServer = route->choseServer(nullptr);
+                if (upstreamServer) {
+                    cli = std::make_shared<tcp_client>(upstreamServer->server, upstreamServer->port);
+                    break;
+                }
+            }
+            if (cli == nullptr) {
+                std::cout << "tcp.doRequest.cli: null,not found route" << std::endl;
+                return "0";
+            }
+            this->server->setnonblocking(cli->socket_fd);
+            this->clients[*request_id] = cli;
+            //this->fd_to_clients[cli->socket_fd] = request_id;
+            is_old = false;
+        } else {
+            cli = iter->second;
+            is_old = true;
+        }
+
+        if (cli == nullptr) {
+            std::cout << "tcp.doRequest.cli: null" << std::endl;
+            return "0";
+        }
+
+        if (cli->ok()) {
+            ssize_t send_ret = cli->send(input.first, input.second);
+            if (send_ret > 0) {
+                // todo 使用epoll
+                // 重复添加检测
+                this->server->add_client(cli->socket_fd, cli->host, cli->port, true,
+                                         client.client_sid,
+                                         request_id,
+                                         client.socket_fd);
+                return "1";
+            }
+        }
+
+        this->del_up_server(request_id);
+        if (is_old) {
+            goto new_client;
+        }
+        return "0";
+
+    }
+
+    std::string tcp_proxy_server::do_tcp_response(bool &keepalive,
+                                                  tcp_server::client_t &client,
+                                                  std::shared_ptr<tcp_client> up_server) {
+
+        motoro::StringPiece piece = client.buffer.toStringPiece();
+
+        size_t ret = send(client.client_socket_fd, piece.data(), piece.size(), MSG_NOSIGNAL);
+
+        this->cleanHttpContext(client.client_socket_fd);
+        this->cleanHttpContext(up_server->socket_fd);
+        if (ret <= 0) {
+            this->del_up_server(client.client_request_id);
+            return "0";
+        }
+        return "1";
+    }
+
+    std::string tcp_proxy_server::do_http_response(bool &keepalive,
+                                                   tcp_server::client_t &client,
+                                                   std::shared_ptr<tcp_client> up_server) {
 
         motoro::response &res = client.res;
         motoro::http_response_parser res_parser(res);
@@ -258,9 +322,14 @@ namespace motoro {
 
         this->cleanHttpContext(client.client_socket_fd);
         this->cleanHttpContext(up_server->socket_fd);
-        if (ret <= 0 || keepalive == CLOSE_CONNECTION) {
+
+        if (ret <= 0) {
             this->del_up_server(client.client_request_id);
             return "0";
+        }
+        if (keepalive == CLOSE_CONNECTION) {
+            this->del_up_server(client.client_request_id);
+            return "1";
         }
         return "1";
 
@@ -285,10 +354,10 @@ namespace motoro {
         this->server->clean(fd);
     }
 
-    std::string tcp_proxy_server::do_request(const tcp_server::filter_handler_function &f,
-                                             const std::function<bool(const motoro::request &)> &g,
-                                             const std::pair<char *, size_t> &input, bool &keepalive,
-                                             tcp_server::client_t &client) {
+    std::string tcp_proxy_server::do_http_request(const tcp_server::filter_handler_function &f,
+                                                  const std::function<bool(const motoro::request &)> &g,
+                                                  const std::pair<char *, size_t> &input, bool &keepalive,
+                                                  tcp_server::client_t &client) {
 
 
         keepalive = KEEPALIVE_CONNECTION;
@@ -326,7 +395,7 @@ namespace motoro {
             keepalive = CLOSE_CONNECTION;
         }
         std::string tmp_str(req.method + req.uri + std::to_string(client.sid));
-
+        //std::cout << client.port << ":" + std::to_string(this->clients.size()) << std::endl;
         // todo 路由需要注意这里是否支持
         std::hash<string> hash;
         request_id = std::make_shared<std::string>(std::move(
@@ -411,9 +480,9 @@ namespace motoro {
                 std::cout << "up_server: null" << std::endl;
                 return "0";
             }
-            return do_response(keepalive, client, up_server);
+            return do_http_response(keepalive, client, up_server);
         }
-        return do_request(f, g, input, keepalive, client);
+        return do_http_request(f, g, input, keepalive, client);
 
     }
 
