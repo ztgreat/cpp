@@ -15,7 +15,6 @@
 #include "motoro/http_response_parser.hpp"
 #include "motoro/tcp_proxy_server.hpp"
 #include "motoro/Buffer.h"
-#include "motoro/MD5.h"
 
 namespace motoro {
 
