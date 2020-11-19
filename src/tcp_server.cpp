@@ -72,7 +72,7 @@ namespace motoro {
 
         freeaddrinfo(server_info);
 
-        this->setnonblocking(this->listenfd);
+        this->set_nonblock(this->listenfd);
 
         listen(this->listenfd, tcp_server::backlog);
     }
@@ -144,7 +144,7 @@ namespace motoro {
         }
         if (this->whitelist_inotify) {
             int whitelist_fd = this->whitelist_inotify->get_fd();
-            this->setnonblocking(whitelist_fd);
+            this->set_nonblock(whitelist_fd);
             if (!epoll.add(whitelist_fd, EPOLLIN | EPOLLET) || !this->whitelist_inotify->watch(IN_MODIFY)) {
                 epoll.del(whitelist_fd);
                 this->whitelist_inotify.reset();
@@ -163,11 +163,11 @@ namespace motoro {
         this->cleaning_fun = f;
     }
 
-    void tcp_server::set_socket_close_function(const tcp_server::socket_close_function &func) {
-        this->socket_close_func = func;
+    void tcp_server::set_on_connect_close_function(const tcp_server::on_connect_close_function &func) {
+        this->on_connect_close = func;
     }
 
-    void tcp_server::setnonblocking(int fd) {
+    void tcp_server::set_nonblock(int fd) {
         int flags = fcntl(fd, F_GETFL, 0);
         fcntl(fd, F_SETFL, flags | O_NONBLOCK);
     }
@@ -217,12 +217,12 @@ namespace motoro {
         shutdown(fd, SHUT_RDWR);
         close(fd);
 
-        if (this->socket_close_func) {
-            this->socket_close_func(fd);
+        if (this->on_connect_close) {
+            this->on_connect_close(fd);
         }
     }
 
-    void tcp_server::clean(int fd) {
+    void tcp_server::clean_context(int fd) {
         if (fd <= 0) {
             return;
         }
@@ -290,7 +290,7 @@ namespace motoro {
             do {
                 connfd = accept(this->listenfd, (struct sockaddr *) &clientaddr, &clilen);
                 if (connfd > 0) {
-                    this->setnonblocking(connfd);
+                    this->set_nonblock(connfd);
 
                     if (!this->get_client_address(&clientaddr, clientip, clientport)) {
                         shutdown(connfd, SHUT_RDWR);

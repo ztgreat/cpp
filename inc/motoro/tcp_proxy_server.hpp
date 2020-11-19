@@ -91,7 +91,7 @@ namespace motoro {
 
         void del_up_server(std::shared_ptr<std::string> client_request_id);
 
-        void socket_close_func(int fd);
+        void on_connect_close_function(int fd);
 
         void clean_request_context(int fd);
 

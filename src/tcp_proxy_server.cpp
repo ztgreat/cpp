@@ -112,10 +112,10 @@ namespace motoro {
         f = std::bind(&tcp_proxy_server::tcp_work, this, std::cref(g), std::placeholders::_1, std::placeholders::_2,
                       std::placeholders::_3, std::placeholders::_4, std::placeholders::_5);
 
-        auto fc = std::bind(&tcp_proxy_server::socket_close_func, this,
+        auto fc = std::bind(&tcp_proxy_server::on_connect_close_function, this,
                             std::placeholders::_1);
 
-        this->server->set_socket_close_function(fc);
+        this->server->set_on_connect_close_function(fc);
 
         this->server->run(f);
     }
@@ -139,11 +139,11 @@ namespace motoro {
                            std::placeholders::_4, std::placeholders::_5);
         }
 
-        auto fc = std::bind(&tcp_proxy_server::socket_close_func, this,
+        auto fc = std::bind(&tcp_proxy_server::on_connect_close_function, this,
                             std::placeholders::_1);
 
 
-        this->server->set_socket_close_function(fc);
+        this->server->set_on_connect_close_function(fc);
 
         this->server->run(ff);
     }
@@ -226,7 +226,7 @@ namespace motoro {
                 std::cout << "tcp.doRequest.cli: null,not found route" << std::endl;
                 return "0";
             }
-            this->server->setnonblocking(cli->socket_fd);
+            this->server->set_nonblock(cli->socket_fd);
             this->clients[*request_id] = cli;
             this->fd_to_upServer[cli->socket_fd] = request_id;
             is_old = false;
@@ -356,7 +356,7 @@ namespace motoro {
         close(cli->socket_fd);
     }
 
-    void tcp_proxy_server::socket_close_func(int fd) {
+    void tcp_proxy_server::on_connect_close_function(int fd) {
         std::shared_ptr<std::string> upServerId = this->fd_to_upServer[fd];
         if (upServerId == nullptr) {
             return;
@@ -371,7 +371,7 @@ namespace motoro {
         if (fd <= 0) {
             return;
         }
-        this->server->clean(fd);
+        this->server->clean_context(fd);
     }
 
     std::string tcp_proxy_server::do_http_request(const tcp_server::filter_handler_function &f,
@@ -449,7 +449,7 @@ namespace motoro {
                 std::cout << "doRequest.cli: null,not found route" << std::endl;
                 return "0";
             }
-            this->server->setnonblocking(cli->socket_fd);
+            this->server->set_nonblock(cli->socket_fd);
             this->clients[*request_id] = cli;
             is_old = false;
         } else {

@@ -72,7 +72,7 @@ namespace motoro {
                 handler_function;
         typedef std::function<void(void)> shutdown_function;
 
-        typedef std::function<void(int)> socket_close_function;
+        typedef std::function<void(int)> on_connect_close_function;
 
         static setsockopt_function setsockopt_cb;
 
@@ -91,9 +91,9 @@ namespace motoro {
 
         virtual void del_client(int);
 
-        virtual void clean(int);
+        virtual void clean_context(int);
 
-        void setnonblocking(int fd);
+        void set_nonblock(int fd);
 
         void run(const handler_function &);
 
@@ -101,7 +101,7 @@ namespace motoro {
 
         void set_shutdown(const shutdown_function &);
 
-        void set_socket_close_function(const tcp_server::socket_close_function &func);
+        void set_on_connect_close_function(const tcp_server::on_connect_close_function &func);
 
         static int backlog;
         static size_t max_connection_limit;
@@ -116,12 +116,11 @@ namespace motoro {
         bool server_is_ok;
         struct addrinfo server_hints;
         shutdown_function cleaning_fun;
-        socket_close_function socket_close_func;
+        on_connect_close_function on_connect_close;
         std::shared_ptr<inotify> whitelist_inotify;
         static std::atomic_bool done;
 
         static void signal_normal_cb(int sig, siginfo_t *, void *);
-
 
         void main_loop(struct epoll_event *, const handler_function &, motoro::epoll &);
 
