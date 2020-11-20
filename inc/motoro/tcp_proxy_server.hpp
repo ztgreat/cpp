@@ -28,11 +28,11 @@ namespace motoro {
 
         virtual ~tcp_client();
 
-        bool ok();
+        bool ok() const;
 
-        ssize_t send(const char *str, size_t len);
+        ssize_t send(const char *str, size_t len) const;
 
-        ssize_t recv(char *buffer, size_t len);
+        ssize_t recv(char *buffer, size_t len) const;
 
     private:
         void init();
@@ -85,8 +85,8 @@ namespace motoro {
         lru11::Cache<std::string, std::shared_ptr<std::pair<std::string, time_t>>> *http_lru_cache;
 
         std::string
-        tcp_work(const tcp_server::filter_handler_function &, const std::pair<char *, size_t> &, bool &, bool &,
-                 tcp_server::client_t &, tcp_server::filter_handler_function &);
+        tcp_work(const tcp_server::filter_handler_function &, const std::pair<char *, size_t> &, bool &,
+                 tcp_server::client_t &);
 
 
         void del_up_server(std::shared_ptr<std::string> client_request_id);
@@ -116,8 +116,7 @@ namespace motoro {
 
         std::string
         http_work(const tcp_server::filter_handler_function &, const std::function<bool(const motoro::request &)> &,
-                  const std::pair<char *, size_t> &, bool &, bool &, tcp_server::client_t &,
-                  tcp_server::filter_handler_function &);
+                  const std::pair<char *, size_t> &, bool &, tcp_server::client_t &);
 
         static std::string DEFAULT_HTTP_CONTENT, DEFAULT_TCP_CONTENT;
     };

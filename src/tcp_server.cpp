@@ -55,7 +55,7 @@ namespace motoro {
         int on = 1;
         setsockopt(this->listenfd, SOL_SOCKET, SO_REUSEPORT, &on, sizeof(on));
 
-        struct timeval send_timeout, recv_timeout;
+        struct timeval send_timeout{}, recv_timeout{};
         send_timeout.tv_sec = this->timeout;
         send_timeout.tv_usec = 0;
         setsockopt(this->listenfd, SOL_SOCKET, SO_SNDTIMEO, &send_timeout, sizeof(send_timeout));
@@ -121,7 +121,7 @@ namespace motoro {
         }
         std::vector<int> sigs = multi_process::signals;
 
-        struct sigaction act;
+        struct sigaction act{};
         for (size_t i = 0; i < sigs.size(); ++i) {
             memset(&act, 0, sizeof(struct sigaction));
             sigemptyset(&act.sa_mask);
@@ -173,10 +173,18 @@ namespace motoro {
     }
 
     bool
-    tcp_server::add_client(int fd, const std::string &ip, int port, bool is_up_server = false,
-                           size_t client_sid = -1,
-                           std::shared_ptr<std::string> client_request_id = nullptr,
-                           int client_socket_fd = -1) {
+    tcp_server::add_client(int fd, const std::string &ip, int port) {
+        std::shared_ptr<std::string> client_request_id(nullptr);
+        return add_client(fd, ip, port, false, -1, -1, client_request_id);
+    }
+
+    bool
+    tcp_server::add_client(int fd, const std::string &ip, int port,
+                           bool is_up_server,
+                           size_t client_sid,
+                           int client_socket_fd,
+                           std::shared_ptr<std::string> client_request_id
+    ) {
 
 
         bool add_result;
@@ -193,7 +201,8 @@ namespace motoro {
         // 存在重复插入
         auto pair = this->clients.insert(
                 std::move(std::make_pair(fd, std::move(
-                        meta_data_t(ip, port, 0, 0, is_up_server, client_sid, client_request_id, client_socket_fd)))));
+                        meta_data_t(ip, port, 0, 0, is_up_server, client_sid, client_request_id,
+                                    client_socket_fd)))));
         if (this->sid_queue.empty()) {
             pair.first->second.client.sid = this->sid = ((this->sid + 1) & SIZE_MAX);
         } else {
@@ -255,16 +264,13 @@ namespace motoro {
             StringPiece stringPiece = buffer->toStringPiece();
             input.first = const_cast<char *>(stringPiece.data());
             input.second = stringPiece.size();
-            filter_handler_function send_to_other_filter = [](const client_t &) {
-                return true;
-            };
-            bool keepalive = CLOSE_CONNECTION, send_to_all = false;
+
+            bool keepalive = CLOSE_CONNECTION;
             client_t &client = this->clients[fd].client;
             client.u_size = this->clients.size();
             client.count++;
 
-
-            std::string success = std::move(g(input, keepalive, send_to_all, client, send_to_other_filter));
+            std::string success = std::move(g(input, keepalive, client));
 
             if (std::strcmp(success.c_str(), "0") == 0) {
                 goto ev_error;
@@ -282,17 +288,17 @@ namespace motoro {
 
     void tcp_server::main_loop(struct epoll_event *event, const handler_function &g, motoro::epoll &epoll) {
         if (event->data.fd == this->listenfd) {
-            struct sockaddr_storage clientaddr;
+            struct sockaddr_storage clientaddr{};
             socklen_t clilen = sizeof(clientaddr);
             std::string clientip;
             int clientport = 0;
-            int connfd = 0;
+            int connfd;
             do {
                 connfd = accept(this->listenfd, (struct sockaddr *) &clientaddr, &clilen);
                 if (connfd > 0) {
                     this->set_nonblock(connfd);
 
-                    if (!this->get_client_address(&clientaddr, clientip, clientport)) {
+                    if (!motoro::tcp_server::get_client_address(&clientaddr, clientip, clientport)) {
                         shutdown(connfd, SHUT_RDWR);
                         close(connfd);
                         break;
@@ -320,7 +326,7 @@ namespace motoro {
 
     bool tcp_server::get_client_address(struct sockaddr_storage *address, std::string &ip, int &port) {
         if (address->ss_family == AF_INET) {
-            struct sockaddr_in *clientaddr_v4 = (struct sockaddr_in *) address;
+            auto *clientaddr_v4 = (struct sockaddr_in *) address;
             char clistr[INET_ADDRSTRLEN];
             if (inet_ntop(AF_INET, &clientaddr_v4->sin_addr, clistr, INET_ADDRSTRLEN)) {
                 ip = clistr;
@@ -328,7 +334,7 @@ namespace motoro {
                 return true;
             }
         } else if (address->ss_family == AF_INET6) {
-            struct sockaddr_in6 *clientaddr_v6 = (struct sockaddr_in6 *) address;
+            auto *clientaddr_v6 = (struct sockaddr_in6 *) address;
             char clistr[INET6_ADDRSTRLEN];
             if (inet_ntop(AF_INET6, &clientaddr_v6->sin6_addr, clistr, INET6_ADDRSTRLEN)) {
                 ip = clistr;

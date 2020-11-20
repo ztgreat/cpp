@@ -7,7 +7,7 @@
 namespace motoro {
 
     epoll::epoll(int ev_size, int timeout)
-            : epfd(0), ev_size(ev_size), real_ev_size(0), timeout(timeout), ev(), evs(0) {
+            : epfd(0), ev_size(ev_size), real_ev_size(0), timeout(timeout), ev(), evs(nullptr) {
         this->epfd = epoll_create1(0);
         if (this->epfd > 0) {
             this->evs = (struct epoll_event *) malloc(sizeof(struct epoll_event) * this->ev_size);
@@ -15,7 +15,7 @@ namespace motoro {
     }
 
     epoll::~epoll() {
-        if (this->evs != 0) {
+        if (this->evs != nullptr) {
             for (int i = 0; i < this->real_ev_size; ++i) {
                 close(this->evs[i].data.fd);
             }
@@ -25,7 +25,7 @@ namespace motoro {
     }
 
     bool epoll::is_ready() const {
-        return this->epfd > 0 && this->evs != 0;
+        return this->epfd > 0 && this->evs != nullptr;
     }
 
     bool epoll::add(int fd, int event) {

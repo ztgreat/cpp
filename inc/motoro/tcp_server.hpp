@@ -67,8 +67,7 @@ namespace motoro {
         typedef std::function<void(int)> setsockopt_function;
         typedef std::function<bool(const client_t &)> filter_handler_function;
         typedef std::function<std::string(
-                const std::pair<char *, size_t> &, bool &, bool &, client_t &,
-                filter_handler_function &)>
+                const std::pair<char *, size_t> &, bool &, client_t &)>
                 handler_function;
         typedef std::function<void(void)> shutdown_function;
 
@@ -86,8 +85,12 @@ namespace motoro {
 
     public:
         virtual bool
+        add_client(int, const std::string &, int);
+
+        virtual bool
         add_client(int, const std::string &, int, bool, size_t client_sid,
-                   std::shared_ptr<std::string> client_request_id, int client_socket_fd);
+                   int client_socket_fd,
+                   std::shared_ptr<std::string>);
 
         virtual void del_client(int);
 
@@ -124,7 +127,7 @@ namespace motoro {
 
         void main_loop(struct epoll_event *, const handler_function &, motoro::epoll &);
 
-        bool get_client_address(struct sockaddr_storage *, std::string &, int &);
+        static bool get_client_address(struct sockaddr_storage *, std::string &, int &);
 
     protected:
         class meta_data_t {

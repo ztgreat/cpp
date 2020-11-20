@@ -4,7 +4,7 @@
 #include <cstring>
 #include <iostream>
 #include <functional>
-#include <motoro/path_route_predicate.hpp>
+#include <motoro/route_predicate.hpp>
 #include "inc/yaml-cpp/yaml.h"
 
 int main(int, char **) {
@@ -54,7 +54,7 @@ int main(int, char **) {
                 continue;
             }
             if (std::strcmp(temp[0].c_str(), "path") == 0) {
-                auto path_predicate = new motoro::path_route_predicate("path", temp[1]);
+                auto path_predicate = new motoro::route_predicate("path", temp[1]);
                 routeLocator->addPredicate(path_predicate);
             }
 
@@ -71,7 +71,7 @@ int main(int, char **) {
         return true;
     };
 
-    server.run(f, h);
+    //server.run(f, h);
 
     std::function<void(pthread_mutex_t *, size_t *)> ff = [&](pthread_mutex_t *mtx, size_t *data) {
         server.run(f, h);
