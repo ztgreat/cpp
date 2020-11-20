@@ -487,7 +487,7 @@ namespace motoro {
         if (client.is_up_server) {
 
             if (client.client_request_id == nullptr) {
-                std::cout << "client.client_request_id: null" << std::endl;
+                std::cout << "http.client.client_request_id: null" << std::endl;
                 return "0";
             }
 

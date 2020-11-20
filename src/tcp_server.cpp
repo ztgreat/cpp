@@ -111,7 +111,7 @@ namespace motoro {
     tcp_server::meta_data_t::meta_data_t(const std::string &ip, int port, size_t uid, size_t gid, bool is_up_server,
                                          size_t client_sid,
                                          std::shared_ptr<std::string> client_request_id, int client_socket_fd)
-            : client(ip, port, uid, gid, is_up_server, client_sid, client_request_id, client_socket_fd) {
+            : client(ip, port, uid, gid, is_up_server, client_sid, std::move(client_request_id), client_socket_fd) {
     }
 
     void tcp_server::run(const handler_function &g) {
@@ -201,7 +201,7 @@ namespace motoro {
         // 存在重复插入
         auto pair = this->clients.insert(
                 std::move(std::make_pair(fd, std::move(
-                        meta_data_t(ip, port, 0, 0, is_up_server, client_sid, client_request_id,
+                        meta_data_t(ip, port, 0, 0, is_up_server, client_sid, std::move(client_request_id),
                                     client_socket_fd)))));
         if (this->sid_queue.empty()) {
             pair.first->second.client.sid = this->sid = ((this->sid + 1) & SIZE_MAX);
