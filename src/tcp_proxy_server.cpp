@@ -169,9 +169,17 @@ namespace motoro {
         keepalive = KEEPALIVE_CONNECTION;
         if (client.is_up_server) {
             // up_server_response
-            std::shared_ptr<tcp_client> up_server = this->clients[client.client_request_id];
+            std::shared_ptr<tcp_client> up_server;
+            std::unordered_map<size_t, std::shared_ptr<tcp_client> > up_servers;
+            up_servers = this->clients[client.client_request_id];
+
+            if (up_servers.empty()) {
+                std::cout << "tcp.up_servers is empty" << std::endl;
+                return "0";
+            }
+            up_server = up_servers[client.socket_fd];
             if (up_server == nullptr) {
-                std::cout << "tcp up_server is null" << std::endl;
+                std::cout << "tcp.up_server is null" << std::endl;
                 return "0";
             }
             return do_tcp_response(keepalive, client, up_server);
@@ -196,38 +204,45 @@ namespace motoro {
         std::hash<string> hash;
         request_id = client.sid;
 
-        std::shared_ptr<tcp_client> cli = this->clients[request_id];
         //std::cout << "TCP: " << "client.sid:" << client.sid << ",client.port:" << client.port
         //          << ",up.server.size:" + std::to_string(this->clients.size()) << std::endl;
+
+        std::shared_ptr<tcp_client> up_server;
+        std::unordered_map<size_t, std::shared_ptr<tcp_client> > up_servers = this->clients[request_id];
+
         bool is_old = true;
-        if (cli == nullptr) {
+        if (up_servers.empty()) {
             new_client:
             for (auto route : *(this->route_locators)) {
                 motoro::upstream_server *upstreamServer = route->choseServer(nullptr);
                 if (upstreamServer) {
-                    cli = std::make_shared<tcp_client>(upstreamServer->server, upstreamServer->port);
+                    up_server = std::make_shared<tcp_client>(upstreamServer->server, upstreamServer->port);
                     break;
                 }
             }
-            if (cli == nullptr) {
+            if (up_server == nullptr) {
                 std::cout << "tcp.doRequest.cli: null,not found route" << std::endl;
                 return "0";
             }
-            this->server->set_nonblock(cli->socket_fd);
-            this->clients[request_id] = cli;
-            this->fd_to_upServer[cli->socket_fd] = request_id;
+
+            this->server->set_nonblock(up_server->socket_fd);
+            up_servers[up_server->socket_fd] = up_server;
+            this->fd_to_upServer[up_server->socket_fd] = request_id;
             is_old = false;
+        } else {
+            // 随机选一个
+            up_server = up_servers.at(0);
         }
 
-        if (cli == nullptr) {
+        if (up_server == nullptr) {
             std::cout << "tcp.doRequest.cli is null" << std::endl;
             return "0";
         }
 
-        if (cli->ok()) {
-            ssize_t send_ret = cli->send(input.first, input.second);
+        if (up_server->ok()) {
+            ssize_t send_ret = up_server->send(input.first, input.second);
             if (send_ret > 0) {
-                this->server->add_client(cli->socket_fd, cli->host, cli->port, true,
+                this->server->add_client(up_server->socket_fd, up_server->host, up_server->port, true,
                                          client.client_sid,
                                          client.socket_fd,
                                          request_id);
@@ -235,7 +250,7 @@ namespace motoro {
             }
         }
 
-        this->del_up_server(request_id);
+        this->del_up_server(request_id, up_server);
         if (is_old) {
             goto new_client;
         }
@@ -254,7 +269,7 @@ namespace motoro {
         this->clean_request_context(client.client_socket_fd);
         this->clean_request_context(up_server->socket_fd);
         if (ret <= 0) {
-            this->del_up_server(client.client_request_id);
+            this->del_up_server(client.client_request_id, up_server);
             return "0";
         }
         return "1";
@@ -272,7 +287,7 @@ namespace motoro {
             // 没解析成功，包错误
             this->clean_request_context(client.client_socket_fd);
             this->clean_request_context(up_server->socket_fd);
-            this->del_up_server(client.client_request_id);
+            this->del_up_server(client.client_request_id, up_server);
             return "0";
         }
         if (!res_parser.message_complete()) {
@@ -287,7 +302,7 @@ namespace motoro {
         output->second = time(nullptr);
         auto i = res.headers.find("Connection");
         if (i == res.headers.end()) {
-            this->del_up_server(client.client_request_id);
+            this->del_up_server(client.client_request_id, up_server);
             auto p = output->first.find("\n");
             if (p != std::string::npos) {
                 output->first.insert(p + 1, keepalive == KEEPALIVE_CONNECTION
@@ -295,7 +310,7 @@ namespace motoro {
                                             : "Connection: close\r\n");
             }
         } else if (i->second == "close" && keepalive == KEEPALIVE_CONNECTION) {
-            this->del_up_server(client.client_request_id);
+            this->del_up_server(client.client_request_id, up_server);
             auto p = output->first.find("close");
             if (p != std::string::npos) {
                 output->first.replace(p, 5, "keep-alive");
@@ -316,29 +331,36 @@ namespace motoro {
         this->clean_request_context(up_server->socket_fd);
 
         if (ret <= 0) {
-            this->del_up_server(client.client_request_id);
+            this->del_up_server(client.client_request_id, up_server);
             return "0";
         }
         if (keepalive == CLOSE_CONNECTION) {
-            this->del_up_server(client.client_request_id);
+            this->del_up_server(client.client_request_id, up_server);
             return "1";
         }
         return "1";
 
     }
 
-    void tcp_proxy_server::del_up_server(size_t client_request_id) {
+    void tcp_proxy_server::del_up_server(size_t client_request_id, std::shared_ptr<tcp_client> up_server) {
 
-        std::shared_ptr<tcp_client> cli = this->clients[client_request_id];
-        if (cli == nullptr) {
+        std::unordered_map<size_t, std::shared_ptr<tcp_client> > up_servers;
+        up_servers = this->clients[client_request_id];
+        if (up_servers.empty()) {
             return;
         }
+
+        if (up_servers.empty()) {
+            return;
+        }
+
         //std::cout << "del_up_server" << std::endl;
-        this->server->del_client(cli->socket_fd);
-        this->clients.erase(client_request_id);
-        this->fd_to_upServer.erase(cli->socket_fd);
-        shutdown(cli->socket_fd, SHUT_RDWR);
-        close(cli->socket_fd);
+        this->server->del_client(up_server->socket_fd);
+        up_servers.erase(up_server->socket_fd);
+        //this->clients.erase(client_request_id);
+        this->fd_to_upServer.erase(up_server->socket_fd);
+        shutdown(up_server->socket_fd, SHUT_RDWR);
+        close(up_server->socket_fd);
     }
 
     void tcp_proxy_server::on_connect_close_function(int fd) {
@@ -346,7 +368,10 @@ namespace motoro {
         if (upServerId <= 0) {
             return;
         }
-        this->clients.erase(upServerId);
+        std::cout << "up server connect_close" << std::endl;
+        std::unordered_map<size_t, std::shared_ptr<tcp_client> > up_servers = this->clients[upServerId];
+        up_servers.erase(fd);
+        this->clients[upServerId] = up_servers;
         this->fd_to_upServer.erase(fd);
         //shutdown(fd, SHUT_RDWR);
         //close(fd);
@@ -400,45 +425,64 @@ namespace motoro {
             keepalive = CLOSE_CONNECTION;
         }
 
-        std::string tmp_str(req.method + req.uri + std::to_string(client.sid) + std::to_string(getpid()));
+        std::string tmp_str(req.method + req.uri + std::to_string(client.sid));
         //std::cout << "HTTP: " << "client.sid:" << client.sid << ",client.port:" << client.port
         //          << ",up.server.size:" + std::to_string(this->clients.size()) << std::endl;
         // todo 路由需要注意这里是否支持
         std::hash<string> hash;
         request_id = hash(req.param.empty() ? tmp_str : tmp_str.append("?").append(req.param));
 
-        std::shared_ptr<tcp_client> cli = this->clients[request_id];
+        std::shared_ptr<tcp_client> up_server;
+        std::unordered_map<size_t, std::shared_ptr<tcp_client> > up_servers = this->clients[request_id];
         bool is_old = true;
-        if (cli == nullptr) {
+        //std::cout << request_id << ":" << getpid() << ":" << this->clients.size() << std::endl;
+        if (up_servers.empty()) {
             new_client:
             for (auto route : *(this->route_locators)) {
                 motoro::upstream_server *upstreamServer = route->choseServer(&req);
                 if (upstreamServer) {
-                    cli = std::make_shared<tcp_client>(upstreamServer->server, upstreamServer->port);
+                    up_server = std::make_shared<tcp_client>(upstreamServer->server, upstreamServer->port);
                     break;
                 }
             }
 
-            //std::cout<<"http make new up server"<<std::endl;
+            std::cout << "http make new up server,current size:" << up_servers.size() << std::endl;
 
-            if (cli == nullptr) {
+            if (up_server == nullptr) {
                 std::cout << "http.doRequest.cli: null,not found route" << std::endl;
                 return "0";
             }
-            this->server->set_nonblock(cli->socket_fd);
-            this->clients[request_id] = cli;
+            this->server->set_nonblock(up_server->socket_fd);
+            up_servers[up_server->socket_fd] = up_server;
+            this->clients[request_id] = up_servers;
+            this->fd_to_upServer[up_server->socket_fd] = request_id;
             is_old = false;
+        } else {
+            // 随机选一个
+            //std::cout << "http chose random  up server,current size:" << up_servers.size() << std::endl;
+            int index = 0;
+            int count = client.sid & (up_servers.size() - 1);
+            for (auto it = up_servers.begin(); it != up_servers.end(); it++) {
+
+                if (index == count) {
+                    up_server = it->second;
+                    break;;
+                }
+                index++;
+            }
+
+
         }
 
-        if (cli == nullptr) {
+        if (up_server == nullptr) {
             std::cout << "http.doRequest.cli: null" << std::endl;
             return "0";
         }
 
-        if (cli->ok()) {
-            ssize_t send_ret = cli->send(input.first, input.second);
+        if (up_server->ok()) {
+            ssize_t send_ret = up_server->send(input.first, input.second);
             if (send_ret > 0) {
-                this->server->add_client(cli->socket_fd, cli->host, cli->port,
+                this->server->add_client(up_server->socket_fd, up_server->host, up_server->port,
                                          true,
                                          client.client_sid,
                                          client.socket_fd,
@@ -447,7 +491,7 @@ namespace motoro {
             }
         }
 
-        this->del_up_server(request_id);
+        this->del_up_server(request_id, up_server);
         if (is_old) {
             goto new_client;
         }
@@ -464,7 +508,15 @@ namespace motoro {
         if (client.is_up_server) {
 
             // up_server_response
-            std::shared_ptr<tcp_client> up_server = this->clients[client.client_request_id];
+            std::shared_ptr<tcp_client> up_server;
+            std::unordered_map<size_t, std::shared_ptr<tcp_client> > up_servers;
+            up_servers = this->clients[client.client_request_id];
+
+            if (up_servers.empty()) {
+                std::cout << "http.up_servers is empty" << std::endl;
+                return "0";
+            }
+            up_server = up_servers[client.socket_fd];
             if (up_server == nullptr) {
                 std::cout << "http.up_server is null" << std::endl;
                 return "0";
