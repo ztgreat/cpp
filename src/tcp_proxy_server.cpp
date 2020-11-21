@@ -425,7 +425,7 @@ namespace motoro {
             keepalive = CLOSE_CONNECTION;
         }
 
-        std::string tmp_str(req.method + req.uri + std::to_string(client.sid));
+        std::string tmp_str(req.method + req.uri + std::to_string(getpid()));
         //std::cout << "HTTP: " << "client.sid:" << client.sid << ",client.port:" << client.port
         //          << ",up.server.size:" + std::to_string(this->clients.size()) << std::endl;
         // todo 路由需要注意这里是否支持
@@ -436,7 +436,7 @@ namespace motoro {
         std::unordered_map<size_t, std::shared_ptr<tcp_client> > up_servers = this->clients[request_id];
         bool is_old = true;
         //std::cout << request_id << ":" << getpid() << ":" << this->clients.size() << std::endl;
-        if (up_servers.empty()) {
+        if (up_servers.empty() || up_servers.size() < 400) {
             new_client:
             for (auto route : *(this->route_locators)) {
                 motoro::upstream_server *upstreamServer = route->choseServer(&req);
