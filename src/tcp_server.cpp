@@ -240,7 +240,7 @@ namespace motoro {
         this->clients[fd].client.res.clean();
     }
 
-    bool tcp_server::work(int fd, const handler_function &g) {
+    bool tcp_server::work(int fd, const handler_function &do_work) {
         motoro::net::Buffer *buffer = &this->clients[fd].client.buffer;
 
         char temp[this->buffer_size];
@@ -270,19 +270,18 @@ namespace motoro {
             client.u_size = this->clients.size();
             client.count++;
 
-            std::string success = std::move(g(input, keepalive, client));
+            std::string success = std::move(do_work(input, keepalive, client));
 
             if (std::strcmp(success.c_str(), "0") == 0) {
                 goto ev_error;
             }
-
         } else {
 
             ev_error:
             this->del_client(fd);
+            return false;
         }
-
-        return false;
+        return true;
     }
 
 

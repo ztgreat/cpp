@@ -8,7 +8,7 @@
 #include <netdb.h>
 #include <queue>
 #include <string>
-#include <sys/signal.h>
+#include <csignal>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <thread>

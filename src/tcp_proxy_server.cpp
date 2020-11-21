@@ -333,6 +333,7 @@ namespace motoro {
         if (cli == nullptr) {
             return;
         }
+        //std::cout << "del_up_server" << std::endl;
         this->server->del_client(cli->socket_fd);
         this->clients.erase(client_request_id);
         this->fd_to_upServer.erase(cli->socket_fd);
@@ -417,6 +418,8 @@ namespace motoro {
                     break;
                 }
             }
+
+            //std::cout<<"http make new up server"<<std::endl;
 
             if (cli == nullptr) {
                 std::cout << "http.doRequest.cli: null,not found route" << std::endl;

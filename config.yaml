@@ -1,10 +1,15 @@
-
 server.host: 127.0.0.1
 server.port: 10000
+# TCP 代理，HTTP 代理
+# TCP 代理: 进行端口转发，routes 只配置一个
+# HTTP 代理: 进行路由转发（根据路径转发，目前这一块还比较弱 ）
+server.mode: HTTP
+# 工作线程个数
+server.worker.processes: 8
 routes:
-      # 路由的ID，没有固定规则，但要求唯一，建议配合服务名
+  # 路由的ID，没有固定规则，但要求唯一，建议配合服务名
   - id: test
-      # 匹配后提供服务的路由地址
+    # 匹配后提供服务的路由地址
     uri:
       # 不包含协议头
       - 127.0.0.1:80

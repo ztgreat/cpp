@@ -13,10 +13,23 @@ int main(int, char **) {
 
     const std::string host = config["server.host"].as<std::string>();
     int port = config["server.port"].as<std::int32_t>();
+    const std::string mode = config["server.mode"].as<std::string>();
 
-    motoro::tcp_proxy_server server(host, port, 5000, 8192, motoro::tcp_server::connection_t::HTTP);
+    const std::string worker_processes_str = config["server.worker.processes"].as<std::string>();
+    unsigned int worker_processes = std::thread::hardware_concurrency();
+    if (strcmp(worker_processes_str.c_str(), "auto") != 0) {
+        worker_processes = std::stoi(worker_processes_str);
+    }
+
+    motoro::tcp_server::connection_t connection;
+    if (strcmp(mode.c_str(), "TCP") == 0 || strcmp(mode.c_str(), "tcp") == 0) {
+        connection = motoro::tcp_server::connection_t::TCP;
+    } else {
+        connection = motoro::tcp_server::connection_t::HTTP;
+    }
+
+    motoro::tcp_proxy_server server(host, port, 5000, 8192, connection);
     server.set_enable_http_lru_cache(false);
-    //server.set_http_lru_cache_expires(1);
     server.set_default_http_content();
 
     const YAML::Node &routes = config["routes"];
@@ -83,6 +96,6 @@ int main(int, char **) {
     };
 
     motoro::multi_process main_process;
-    main_process.run(ff, g, std::thread::hardware_concurrency());
+    main_process.run(ff, g, worker_processes);
 }
 
