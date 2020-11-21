@@ -427,6 +427,7 @@ namespace motoro {
             }
             this->server->set_nonblock(cli->socket_fd);
             this->clients[request_id] = cli;
+            this->fd_to_upServer[cli->socket_fd] = request_id;
             is_old = false;
         }
 
