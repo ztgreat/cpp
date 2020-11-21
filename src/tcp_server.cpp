@@ -2,7 +2,7 @@
 #include <fcntl.h>
 #include <netinet/in.h>
 #include <sys/epoll.h>
-#include <sys/signal.h>
+#include <csignal>
 #include <sys/socket.h>
 #include <unistd.h>
 #include <cstring>
@@ -96,7 +96,7 @@ namespace motoro {
     }
 
     tcp_server::client_t::client_t(const std::string &ip, int port, size_t uid, size_t gid,
-                                   bool is_up_server, size_t client_sid, std::shared_ptr<std::string> client_request_id,
+                                   bool is_up_server, size_t client_sid, size_t client_request_id,
                                    int client_socket_fd)
             : type(tcp_server::connection_t::TCP), ip(ip), port(port), t(time(0)), sid(0), uid(uid), u_size(0),
               count(0), gid(), is_up_server(is_up_server), client_sid(client_sid), client_request_id(client_request_id),
@@ -110,8 +110,8 @@ namespace motoro {
 
     tcp_server::meta_data_t::meta_data_t(const std::string &ip, int port, size_t uid, size_t gid, bool is_up_server,
                                          size_t client_sid,
-                                         std::shared_ptr<std::string> client_request_id, int client_socket_fd)
-            : client(ip, port, uid, gid, is_up_server, client_sid, std::move(client_request_id), client_socket_fd) {
+                                         size_t client_request_id, int client_socket_fd)
+            : client(ip, port, uid, gid, is_up_server, client_sid, client_request_id, client_socket_fd) {
     }
 
     void tcp_server::run(const handler_function &g) {
@@ -127,7 +127,7 @@ namespace motoro {
             sigemptyset(&act.sa_mask);
             act.sa_sigaction = tcp_server::signal_normal_cb;
             act.sa_flags = SA_SIGINFO;
-            if (sigaction(sigs[i], &act, NULL) < 0) {
+            if (sigaction(sigs[i], &act, nullptr) < 0) {
                 perror("sigaction error");
                 return;
             }
@@ -175,7 +175,7 @@ namespace motoro {
     bool
     tcp_server::add_client(int fd, const std::string &ip, int port) {
         std::shared_ptr<std::string> client_request_id(nullptr);
-        return add_client(fd, ip, port, false, -1, -1, client_request_id);
+        return add_client(fd, ip, port, false, -1, -1, -1);
     }
 
     bool
@@ -183,7 +183,7 @@ namespace motoro {
                            bool is_up_server,
                            size_t client_sid,
                            int client_socket_fd,
-                           std::shared_ptr<std::string> client_request_id
+                           size_t client_request_id
     ) {
 
 
@@ -201,7 +201,7 @@ namespace motoro {
         // 存在重复插入
         auto pair = this->clients.insert(
                 std::move(std::make_pair(fd, std::move(
-                        meta_data_t(ip, port, 0, 0, is_up_server, client_sid, std::move(client_request_id),
+                        meta_data_t(ip, port, 0, 0, is_up_server, client_sid, client_request_id,
                                     client_socket_fd)))));
         if (this->sid_queue.empty()) {
             pair.first->second.client.sid = this->sid = ((this->sid + 1) & SIZE_MAX);

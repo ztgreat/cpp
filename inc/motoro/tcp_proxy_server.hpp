@@ -79,8 +79,8 @@ namespace motoro {
         bool enable_http_lru_cache;
         tcp_server *server;
         std::vector<route_locator *> *route_locators;
-        std::unordered_map<std::string, std::shared_ptr<tcp_client>> clients;
-        std::unordered_map<size_t, std::shared_ptr<std::string>> fd_to_upServer;
+        std::unordered_map<size_t, std::shared_ptr<tcp_client>> clients;
+        std::unordered_map<size_t, size_t> fd_to_upServer;
         std::string default_content;
         lru11::Cache<std::string, std::shared_ptr<std::pair<std::string, time_t>>> *http_lru_cache;
 
@@ -89,7 +89,7 @@ namespace motoro {
                  tcp_server::client_t &);
 
 
-        void del_up_server(std::shared_ptr<std::string> client_request_id);
+        void del_up_server(size_t client_request_id);
 
         void on_connect_close_function(int fd);
 

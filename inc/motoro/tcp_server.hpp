@@ -42,7 +42,7 @@ namespace motoro {
             client_t();
 
             client_t(const std::string &ip, int port, size_t uid, size_t gid, bool, size_t client_sid,
-                     std::shared_ptr<std::string>, int);
+                     size_t, int);
 
             virtual ~client_t() = default;
 
@@ -59,7 +59,7 @@ namespace motoro {
 
             // only for up_server
             bool is_up_server;
-            std::shared_ptr<std::string> client_request_id;
+            size_t client_request_id;
             int client_socket_fd;
             size_t client_sid;
         };
@@ -90,7 +90,7 @@ namespace motoro {
         virtual bool
         add_client(int, const std::string &, int, bool, size_t client_sid,
                    int client_socket_fd,
-                   std::shared_ptr<std::string>);
+                   size_t);
 
         virtual void del_client(int);
 
@@ -135,7 +135,7 @@ namespace motoro {
             meta_data_t();
 
             meta_data_t(const std::string &ip, int port, size_t uid, size_t gid, bool, size_t client_sid,
-                        std::shared_ptr<std::string>,
+                        size_t,
                         int);
 
             virtual ~meta_data_t() = default;
