@@ -1,0 +1,1 @@
+docker run -d --name nginx -p 80:80 -v /home/zhangteng/workspace/c++/proxy-cpp/nginx.conf:/etc/nginx/nginx.conf  nginx
