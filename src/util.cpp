@@ -720,6 +720,7 @@ namespace motoro {
                     refork(pid);
                 }
             }
+            refork(pid);
         }
     }
 }
