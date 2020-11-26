@@ -13,8 +13,7 @@ namespace motoro {
         }
 
         // 这里需要通过 取余 策略选取up server
-        this->index = (this->index + 1) & SIZE_MAX;
-        return (*this->upstream_server_list)[index &
-                                             (this->upstream_server_list->size() - 1)];
+        this->index = this->index ^ 1;
+        return (*this->upstream_server_list)[this->index];
     }
 }
