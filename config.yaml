@@ -5,7 +5,7 @@ server.port: 10000
 # HTTP 代理: 进行路由转发（根据路径转发，目前这一块还比较弱 ）
 server.mode: HTTP
 # 工作线程个数
-server.worker.processes: 8
+server.worker.processes: auto
 routes:
   # 路由的ID，没有固定规则，但要求唯一，建议配合服务名
   - id: test
