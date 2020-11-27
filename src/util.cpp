@@ -720,7 +720,9 @@ namespace motoro {
                     refork(pid);
                 }
             }
-            refork(pid);
+            if (WIFEXITED(status) && (multi_process::sig != SIGQUIT && multi_process::sig != SIGKILL) ){
+                refork(pid);
+            }
         }
     }
 }
