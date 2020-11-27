@@ -682,7 +682,7 @@ namespace motoro {
             f(this->mtx, this->data);
         };
         motoro::forker((process_size > 0 ? process_size : std::thread::hardware_concurrency()), process_work,
-                        multi_process::pids);
+                       multi_process::pids);
         multi_process::set_signal();
         for (size_t i = 0; i < multi_process::pids.size(); ++i) {
             if (motoro::process_bind_cpu(multi_process::pids[i].first, i)) {
@@ -720,9 +720,7 @@ namespace motoro {
                     refork(pid);
                 }
             }
-            if (WIFEXITED(status) && (multi_process::sig != SIGQUIT && multi_process::sig != SIGKILL) ){
-                refork(pid);
-            }
+            //refork(pid);
         }
     }
 }
