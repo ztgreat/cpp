@@ -198,18 +198,17 @@ namespace motoro {
             // 添加失败,重复了
             // return false;
         }
-        // 存在重复插入
-        auto pair = this->clients.insert(
-                std::move(std::make_pair(fd, std::move(
-                        meta_data_t(ip, port, 0, 0, is_up_server, client_sid, client_request_id,
-                                    client_socket_fd)))));
+        meta_data_t metaData = meta_data_t(ip, port, 0, 0, is_up_server, client_sid, client_request_id,
+                                           client_socket_fd);
+        client_t &client = this->clients[fd].client;
         if (this->sid_queue.empty()) {
-            pair.first->second.client.sid = this->sid = ((this->sid + 1) & SIZE_MAX);
+            metaData.client.sid = this->sid = ((this->sid + 1) & SIZE_MAX);
         } else {
-            pair.first->second.client.sid = this->sid_queue.front();
+            metaData.client.sid = this->sid_queue.front();
             this->sid_queue.pop();
         }
-        pair.first->second.client.socket_fd = fd;
+        metaData.client.socket_fd = fd;
+        this->clients[fd] = metaData;
         return true;
     }
 
