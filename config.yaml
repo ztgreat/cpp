@@ -1,5 +1,6 @@
 server.host: 127.0.0.1
 server.port: 10000
+server.buffer.size: 2048
 # TCP 代理，HTTP 代理
 # TCP 代理: 进行端口转发，routes 只配置一个
 # HTTP 代理: 进行路由转发（根据路径转发，目前这一块还比较弱 ）

@@ -96,9 +96,11 @@ namespace motoro {
     }
 
     tcp_server::client_t::client_t(const std::string &ip, int port, size_t uid, size_t gid,
+                                   size_t buffer_size,
                                    bool is_up_server, size_t client_sid, size_t client_request_id,
                                    int client_socket_fd)
             : type(tcp_server::connection_t::TCP), ip(ip), port(port), t(time(0)), sid(0), uid(uid), u_size(0),
+              buffer(std::make_shared<motoro::net::Buffer>(motoro::net::Buffer(buffer_size))),
               count(0), gid(), is_up_server(is_up_server), client_sid(client_sid), client_request_id(client_request_id),
               client_socket_fd(client_socket_fd) {
         this->gid.push_back(gid);
@@ -108,10 +110,12 @@ namespace motoro {
             : client() {
     }
 
-    tcp_server::meta_data_t::meta_data_t(const std::string &ip, int port, size_t uid, size_t gid, bool is_up_server,
+    tcp_server::meta_data_t::meta_data_t(const std::string &ip, int port, size_t uid, size_t gid,
+                                         size_t buffer_size,
+                                         bool is_up_server,
                                          size_t client_sid,
                                          size_t client_request_id, int client_socket_fd)
-            : client(ip, port, uid, gid, is_up_server, client_sid, client_request_id, client_socket_fd) {
+            : client(ip, port, uid, gid, buffer_size, is_up_server, client_sid, client_request_id, client_socket_fd) {
     }
 
     void tcp_server::run(const handler_function &g) {
@@ -200,7 +204,7 @@ namespace motoro {
         }
 
         this->clients[fd] = std::make_shared<meta_data_t>(
-                meta_data_t(ip, port, 0, 0, is_up_server, client_sid, client_request_id,
+                meta_data_t(ip, port, 0, 0, this->buffer_size, is_up_server, client_sid, client_request_id,
                             client_socket_fd));
 
         std::shared_ptr<meta_data_t> metaData = this->clients[fd];
@@ -219,7 +223,7 @@ namespace motoro {
         if (fd <= 0) {
             return;
         }
-        this->clients[fd]->client.buffer.shrink();
+        this->clients[fd]->client.buffer->shrink();
         this->clients[fd]->client.req.clean();
         this->clients[fd]->client.res.clean();
         this->server_epoll->del(fd);
@@ -241,13 +245,13 @@ namespace motoro {
             //std::cout << "clean_context:this->clients[fd] is null" << std::endl;
             return;
         }
-        this->clients[fd]->client.buffer.shrink();
+        this->clients[fd]->client.buffer->shrink();
         this->clients[fd]->client.req.clean();
         this->clients[fd]->client.res.clean();
     }
 
     bool tcp_server::work(int fd, const handler_function &do_work) {
-        motoro::net::Buffer *buffer = &this->clients[fd]->client.buffer;
+        std::shared_ptr<motoro::net::Buffer> buffer = this->clients[fd]->client.buffer;
 
         char temp[this->buffer_size];
         bool repeatable = true;

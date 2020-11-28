@@ -13,7 +13,6 @@
 
 #include <errno.h>
 #include <sys/uio.h>
-
 using namespace motoro;
 using namespace motoro::net;
 

@@ -41,8 +41,8 @@ namespace motoro {
         public:
             client_t();
 
-            client_t(const std::string &ip, int port, size_t uid, size_t gid, bool, size_t client_sid,
-                     size_t, int);
+            client_t(const std::string &ip, int port, size_t uid, size_t gid,
+                     size_t, bool, size_t client_sid, size_t, int);
 
             virtual ~client_t() = default;
 
@@ -53,7 +53,7 @@ namespace motoro {
             time_t t;
             size_t sid, uid, u_size, count;
             std::list<size_t> gid;
-            motoro::net::Buffer buffer;
+            std::shared_ptr<motoro::net::Buffer> buffer;
             motoro::request req;
             motoro::response res;
 
@@ -134,9 +134,8 @@ namespace motoro {
         public:
             meta_data_t();
 
-            meta_data_t(const std::string &ip, int port, size_t uid, size_t gid, bool, size_t client_sid,
-                        size_t,
-                        int);
+            meta_data_t(const std::string &ip, int port, size_t uid, size_t gid, size_t,
+                        bool, size_t, size_t, int);
 
             virtual ~meta_data_t() = default;
 
@@ -148,7 +147,7 @@ namespace motoro {
         size_t buffer_size, thread_size, sid;
         int timeout;
         std::queue<size_t, std::list<size_t>> sid_queue;
-        std::unordered_map<int,  std::shared_ptr<meta_data_t> > clients;
+        std::unordered_map<int, std::shared_ptr<meta_data_t> > clients;
         motoro::thread_pool<std::function<bool()>> *work_pool;
 
         virtual bool work(int, const handler_function &);
