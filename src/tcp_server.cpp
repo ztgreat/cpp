@@ -198,16 +198,19 @@ namespace motoro {
             // 添加失败,重复了
             // return false;
         }
-        meta_data_t metaData = meta_data_t(ip, port, 0, 0, is_up_server, client_sid, client_request_id,
-                                           client_socket_fd);
-        client_t &client = this->clients[fd].client;
+
+        this->clients[fd] = std::make_shared<meta_data_t>(
+                meta_data_t(ip, port, 0, 0, is_up_server, client_sid, client_request_id,
+                            client_socket_fd));
+
+        std::shared_ptr<meta_data_t> metaData = this->clients[fd];
         if (this->sid_queue.empty()) {
-            metaData.client.sid = this->sid = ((this->sid + 1) & SIZE_MAX);
+            metaData->client.sid = this->sid = ((this->sid + 1) & SIZE_MAX);
         } else {
-            metaData.client.sid = this->sid_queue.front();
+            metaData->client.sid = this->sid_queue.front();
             this->sid_queue.pop();
         }
-        metaData.client.socket_fd = fd;
+        metaData->client.socket_fd = fd;
         this->clients[fd] = metaData;
         return true;
     }
@@ -216,11 +219,11 @@ namespace motoro {
         if (fd <= 0) {
             return;
         }
-        this->clients[fd].client.buffer.shrink();
-        this->clients[fd].client.req.clean();
-        this->clients[fd].client.res.clean();
+        this->clients[fd]->client.buffer.shrink();
+        this->clients[fd]->client.req.clean();
+        this->clients[fd]->client.res.clean();
         this->server_epoll->del(fd);
-        this->sid_queue.push(this->clients.find(fd)->second.client.sid);
+        this->sid_queue.push(this->clients.find(fd)->second->client.sid);
         this->clients.erase(fd);
         shutdown(fd, SHUT_RDWR);
         close(fd);
@@ -234,13 +237,17 @@ namespace motoro {
         if (fd <= 0) {
             return;
         }
-        this->clients[fd].client.buffer.shrink();
-        this->clients[fd].client.req.clean();
-        this->clients[fd].client.res.clean();
+        if (this->clients[fd] == nullptr) {
+            //std::cout << "clean_context:this->clients[fd] is null" << std::endl;
+            return;
+        }
+        this->clients[fd]->client.buffer.shrink();
+        this->clients[fd]->client.req.clean();
+        this->clients[fd]->client.res.clean();
     }
 
     bool tcp_server::work(int fd, const handler_function &do_work) {
-        motoro::net::Buffer *buffer = &this->clients[fd].client.buffer;
+        motoro::net::Buffer *buffer = &this->clients[fd]->client.buffer;
 
         char temp[this->buffer_size];
         bool repeatable = true;
@@ -265,7 +272,11 @@ namespace motoro {
             input.second = stringPiece.size();
 
             bool keepalive = CLOSE_CONNECTION;
-            client_t &client = this->clients[fd].client;
+            if (this->clients[fd] == nullptr) {
+                //std::cout << "work:this->clients[fd] is null" << std::endl;
+                goto ev_error;
+            }
+            client_t &client = this->clients[fd]->client;
             client.u_size = this->clients.size();
             client.count++;
 
