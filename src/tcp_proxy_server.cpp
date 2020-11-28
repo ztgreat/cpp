@@ -247,7 +247,7 @@ namespace motoro {
                                                   tcp_server::client_t &client,
                                                   std::shared_ptr<tcp_client> up_server) {
 
-        motoro::StringPiece piece = client.buffer.toStringPiece();
+        motoro::StringPiece piece = client.buffer->toStringPiece();
 
         size_t ret = send(client.client_socket_fd, piece.data(), piece.size(), MSG_NOSIGNAL);
 
@@ -266,7 +266,7 @@ namespace motoro {
 
         motoro::response &res = client.res;
         motoro::http_response_parser res_parser(res);
-        motoro::StringPiece piece = client.buffer.toStringPiece();
+        motoro::StringPiece piece = client.buffer->toStringPiece();
         bool success = res_parser.parse(piece.data(), piece.size());
         if (!success) {
             // 没解析成功，包错误
@@ -375,7 +375,7 @@ namespace motoro {
         motoro::request &req = client.req;
 
         motoro::http_request_parser req_parser(req);
-        motoro::StringPiece piece = client.buffer.toStringPiece();
+        motoro::StringPiece piece = client.buffer->toStringPiece();
         bool success = req_parser.parse(piece.data(), piece.size());
         if (!success) {
             // 没解析成功，包错误

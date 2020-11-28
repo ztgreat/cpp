@@ -14,6 +14,7 @@ int main(int, char **) {
     const std::string host = config["server.host"].as<std::string>();
     int port = config["server.port"].as<std::int32_t>();
     const std::string mode = config["server.mode"].as<std::string>();
+    int buffer_size = config["server.buffer.size"].as<std::int32_t>();
 
     const std::string worker_processes_str = config["server.worker.processes"].as<std::string>();
     unsigned int worker_processes = std::thread::hardware_concurrency();
@@ -28,7 +29,7 @@ int main(int, char **) {
         connection = motoro::tcp_server::connection_t::HTTP;
     }
 
-    motoro::tcp_proxy_server server(host, port, 5000, 8192, connection);
+    motoro::tcp_proxy_server server(host, port, 5000, buffer_size, connection);
     server.set_enable_http_lru_cache(false);
     server.set_default_http_content();
 
