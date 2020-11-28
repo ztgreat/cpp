@@ -342,11 +342,11 @@ namespace motoro {
     }
 
     void tcp_proxy_server::on_connect_close_function(int fd) {
-        size_t upServerId = this->fd_to_upServer[fd];
-        if (upServerId <= 0) {
+        size_t up_server_request_id = this->fd_to_upServer[fd];
+        if (up_server_request_id <= 0) {
             return;
         }
-        this->clients.erase(upServerId);
+        this->clients.erase(up_server_request_id);
         this->fd_to_upServer.erase(fd);
         //shutdown(fd, SHUT_RDWR);
         //close(fd);

@@ -148,7 +148,7 @@ namespace motoro {
         size_t buffer_size, thread_size, sid;
         int timeout;
         std::queue<size_t, std::list<size_t>> sid_queue;
-        std::unordered_map<int, meta_data_t> clients;
+        std::unordered_map<int,  std::shared_ptr<meta_data_t> > clients;
         motoro::thread_pool<std::function<bool()>> *work_pool;
 
         virtual bool work(int, const handler_function &);
