@@ -400,7 +400,7 @@ namespace motoro {
             keepalive = CLOSE_CONNECTION;
         }
 
-        std::string tmp_str(req.method + req.uri + std::to_string(client.sid) + std::to_string(getpid()));
+        std::string tmp_str(req.method + req.uri + std::to_string(client.sid));
         //std::cout << "HTTP: " << "client.sid:" << client.sid << ",client.port:" << client.port
         //          << ",up.server.size:" + std::to_string(this->clients.size()) << std::endl;
         // todo 路由需要注意这里是否支持
