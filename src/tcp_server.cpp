@@ -24,8 +24,6 @@ namespace motoro {
     size_t tcp_server::max_send_limit = 5;
     size_t tcp_server::max_connection_keepalive = 60;
 
-    size_t max_current_clients = 3000;
-
     tcp_server::setsockopt_function tcp_server::setsockopt_cb = nullptr;
 
     void tcp_server::signal_normal_cb(int sig, siginfo_t *, void *) {
@@ -312,11 +310,6 @@ namespace motoro {
                 connfd = accept(this->listenfd, (struct sockaddr *) &clientaddr, &clilen);
                 if (connfd > 0) {
                     this->set_nonblock(connfd);
-
-                    if (this->clients.size() > max_current_clients) {
-                        std::cout << this->clients.size() << std::endl;
-                    }
-
                     if (!motoro::tcp_server::get_client_address(&clientaddr, clientip, clientport)) {
                         shutdown(connfd, SHUT_RDWR);
                         close(connfd);
