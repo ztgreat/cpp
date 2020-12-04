@@ -231,7 +231,6 @@ namespace motoro {
         if (cli->ok()) {
             ssize_t send_ret = cli->send(input.first, input.second);
             if (send_ret > 0) {
-                clean_response_context(cli->socket_fd);
                 this->server->add_client(cli->socket_fd, cli->host, cli->port, true,
                                          client.client_sid,
                                          client.socket_fd,
@@ -257,7 +256,7 @@ namespace motoro {
         size_t ret = send(client.client_socket_fd, piece.data(), piece.size(), MSG_ZEROCOPY);
 
         this->clean_request_context(client.client_socket_fd);
-        //this->clean_request_context(up_server->socket_fd);
+        this->clean_response_context(up_server->socket_fd);
         if (ret <= 0) {
             this->del_up_server(client.client_request_id);
             return "0";
@@ -318,7 +317,7 @@ namespace motoro {
         size_t ret = send(client.client_socket_fd, output->first.c_str(), output->first.size(), MSG_ZEROCOPY);
 
         this->clean_request_context(client.client_socket_fd);
-        //this->clean_request_context(up_server->socket_fd);
+        this->clean_request_context(up_server->socket_fd);
 
         if (ret <= 0) {
             this->del_up_server(client.client_request_id);
@@ -447,11 +446,9 @@ namespace motoro {
             std::cout << "http.doRequest.cli: null" << std::endl;
             return "0";
         }
-
         if (cli->ok()) {
             ssize_t send_ret = cli->send(input.first, input.second);
             if (send_ret > 0) {
-                clean_response_context(cli->socket_fd);
                 this->server->add_client(cli->socket_fd, cli->host, cli->port,
                                          true,
                                          client.client_sid,
