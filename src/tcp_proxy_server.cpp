@@ -8,6 +8,7 @@
 #include <motoro/util.hpp>
 #include <motoro/upstream_server.hpp>
 #include <utility>
+#include <netinet/tcp.h>
 #include "motoro/http_request_parser.hpp"
 #include "motoro/http_response_parser.hpp"
 #include "motoro/tcp_proxy_server.hpp"
@@ -42,6 +43,9 @@ namespace motoro {
         if (this->socket_fd < 0) {
             return;
         }
+        int on = 1;
+        setsockopt(this->socket_fd, SOL_SOCKET, MSG_ZEROCOPY, &on, sizeof(on));
+        setsockopt(this->socket_fd, IPPROTO_TCP, TCP_NODELAY, &on, sizeof(on));
         if (connect(this->socket_fd, (struct sockaddr *) &this->server_addr, sizeof(this->server_addr)) < 0) {
             close(this->socket_fd);
             this->socket_fd = -1;
@@ -59,7 +63,7 @@ namespace motoro {
     }
 
     ssize_t tcp_client::send(const char *str, size_t len) const {
-        return ::send(this->socket_fd, str, len, MSG_NOSIGNAL);
+        return ::send(this->socket_fd, str, len, MSG_ZEROCOPY);
     }
 
     std::string tcp_proxy_server::DEFAULT_HTTP_CONTENT = "HTTP/1.1 403 Forbidden\r\n"
@@ -227,6 +231,7 @@ namespace motoro {
         if (cli->ok()) {
             ssize_t send_ret = cli->send(input.first, input.second);
             if (send_ret > 0) {
+                clean_response_context(cli->socket_fd);
                 this->server->add_client(cli->socket_fd, cli->host, cli->port, true,
                                          client.client_sid,
                                          client.socket_fd,
@@ -247,12 +252,12 @@ namespace motoro {
                                                   tcp_server::client_t &client,
                                                   std::shared_ptr<tcp_client> up_server) {
 
-        motoro::StringPiece piece = client.buffer->toStringPiece();
+        motoro::StringPiece piece = client.buffer.toStringPiece();
 
-        size_t ret = send(client.client_socket_fd, piece.data(), piece.size(), MSG_NOSIGNAL);
+        size_t ret = send(client.client_socket_fd, piece.data(), piece.size(), MSG_ZEROCOPY);
 
         this->clean_request_context(client.client_socket_fd);
-        this->clean_request_context(up_server->socket_fd);
+        //this->clean_request_context(up_server->socket_fd);
         if (ret <= 0) {
             this->del_up_server(client.client_request_id);
             return "0";
@@ -266,7 +271,7 @@ namespace motoro {
 
         motoro::response &res = client.res;
         motoro::http_response_parser res_parser(res);
-        motoro::StringPiece piece = client.buffer->toStringPiece();
+        motoro::StringPiece piece = client.buffer.toStringPiece();
         bool success = res_parser.parse(piece.data(), piece.size());
         if (!success) {
             // 没解析成功，包错误
@@ -310,10 +315,10 @@ namespace motoro {
         }
 
 
-        size_t ret = send(client.client_socket_fd, output->first.c_str(), output->first.size(), MSG_NOSIGNAL);
+        size_t ret = send(client.client_socket_fd, output->first.c_str(), output->first.size(), MSG_ZEROCOPY);
 
         this->clean_request_context(client.client_socket_fd);
-        this->clean_request_context(up_server->socket_fd);
+        //this->clean_request_context(up_server->socket_fd);
 
         if (ret <= 0) {
             this->del_up_server(client.client_request_id);
@@ -359,6 +364,13 @@ namespace motoro {
         this->server->clean_context(fd);
     }
 
+    void tcp_proxy_server::clean_response_context(int fd) {
+        if (fd <= 0) {
+            return;
+        }
+        this->server->clean_context(fd);
+    }
+
     std::string tcp_proxy_server::do_http_request(const tcp_server::filter_handler_function &f,
                                                   const std::function<bool(const motoro::request &)> &g,
                                                   const std::pair<char *, size_t> &input, bool &keepalive,
@@ -375,7 +387,7 @@ namespace motoro {
         motoro::request &req = client.req;
 
         motoro::http_request_parser req_parser(req);
-        motoro::StringPiece piece = client.buffer->toStringPiece();
+        motoro::StringPiece piece = client.buffer.toStringPiece();
         bool success = req_parser.parse(piece.data(), piece.size());
         if (!success) {
             // 没解析成功，包错误
@@ -439,6 +451,7 @@ namespace motoro {
         if (cli->ok()) {
             ssize_t send_ret = cli->send(input.first, input.second);
             if (send_ret > 0) {
+                clean_response_context(cli->socket_fd);
                 this->server->add_client(cli->socket_fd, cli->host, cli->port,
                                          true,
                                          client.client_sid,

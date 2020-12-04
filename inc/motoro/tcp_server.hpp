@@ -53,7 +53,7 @@ namespace motoro {
             time_t t;
             size_t sid, uid, u_size, count;
             std::list<size_t> gid;
-            std::shared_ptr<motoro::net::Buffer> buffer;
+            motoro::net::Buffer buffer;
             motoro::request req;
             motoro::response res;
 

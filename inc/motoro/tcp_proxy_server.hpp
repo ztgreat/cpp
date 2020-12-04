@@ -99,6 +99,7 @@ namespace motoro {
 
         void clean_request_context(int fd);
 
+        void clean_response_context(int fd);
 
         std::string do_tcp_request(const tcp_server::filter_handler_function &f,
                                    const std::pair<char *, size_t> &input, bool &keepalive,

@@ -13,6 +13,7 @@
 #include <thread>
 #include <vector>
 #include <motoro/Buffer.h>
+#include <netinet/tcp.h>
 #include "tcp_server.hpp"
 #include "util.hpp"
 
@@ -63,7 +64,8 @@ namespace motoro {
         recv_timeout.tv_sec = this->timeout;
         recv_timeout.tv_usec = 0;
         setsockopt(this->listenfd, SOL_SOCKET, SO_RCVTIMEO, &recv_timeout, sizeof(recv_timeout));
-
+        setsockopt(this->listenfd, SOL_SOCKET, MSG_ZEROCOPY, &on, sizeof(on));
+        setsockopt(this->listenfd, IPPROTO_TCP, TCP_NODELAY, &on, sizeof(on));
         if (tcp_server::setsockopt_cb) {
             tcp_server::setsockopt_cb(this->listenfd);
         }
@@ -100,7 +102,6 @@ namespace motoro {
                                    bool is_up_server, size_t client_sid, size_t client_request_id,
                                    int client_socket_fd)
             : type(tcp_server::connection_t::TCP), ip(ip), port(port), t(time(0)), sid(0), uid(uid), u_size(0),
-              buffer(std::make_shared<motoro::net::Buffer>(motoro::net::Buffer(buffer_size))),
               count(0), gid(), is_up_server(is_up_server), client_sid(client_sid), client_request_id(client_request_id),
               client_socket_fd(client_socket_fd) {
         this->gid.push_back(gid);
@@ -223,7 +224,7 @@ namespace motoro {
         if (fd <= 0) {
             return;
         }
-        this->clients[fd]->client.buffer->shrink();
+        this->clients[fd]->client.buffer.shrink();
         this->clients[fd]->client.req.clean();
         this->clients[fd]->client.res.clean();
         this->server_epoll->del(fd);
@@ -245,13 +246,13 @@ namespace motoro {
             //std::cout << "clean_context:this->clients[fd] is null" << std::endl;
             return;
         }
-        this->clients[fd]->client.buffer->shrink();
+        this->clients[fd]->client.buffer.shrink();
         this->clients[fd]->client.req.clean();
         this->clients[fd]->client.res.clean();
     }
 
     bool tcp_server::work(int fd, const handler_function &do_work) {
-        std::shared_ptr<motoro::net::Buffer> buffer = this->clients[fd]->client.buffer;
+        motoro::net::Buffer &buffer = this->clients[fd]->client.buffer;
 
         char temp[this->buffer_size];
         bool repeatable = true;
@@ -269,9 +270,9 @@ namespace motoro {
             goto ev_error;
 
         } else if (ret > 0) {
-            buffer->append(temp, ret);
+            buffer.append(temp, ret);
             std::pair<char *, size_t> input;
-            StringPiece stringPiece = buffer->toStringPiece();
+            StringPiece stringPiece = buffer.toStringPiece();
             input.first = const_cast<char *>(stringPiece.data());
             input.second = stringPiece.size();
 
@@ -319,6 +320,8 @@ namespace motoro {
                         this->del_client(connfd);
                         break;
                     }
+                } else if (errno != EAGAIN) {
+                    std::cout << "accept fail,error:" << errno << ":" << strerror(errno) << std::endl;
                 }
             } while (connfd > 0);
         } else if (event->events & EPOLLIN) {
