@@ -332,8 +332,10 @@ namespace motoro {
                     }
                 } else if (errno != EAGAIN) {
                     std::cout << "accept fail,errno:" << errno << "," << "msg:" << strerror(errno) << std::endl;
+                    continue;
                 }
                 std::cout << connfd << std::endl;
+                std::cout << "accept fail,errno:" << errno << "," << "msg:" << strerror(errno) << std::endl;
             } while (connfd > 0);
         } else if (event->events & EPOLLIN) {
             if (this->whitelist_inotify && event->data.fd == this->whitelist_inotify->get_fd()) {
