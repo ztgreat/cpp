@@ -9,7 +9,7 @@
 
 int main(int, char **) {
 
-    YAML::Node config = YAML::LoadFile("../config.yaml");
+    YAML::Node config = YAML::LoadFile("./config.yaml");
 
     const std::string host = config["server.host"].as<std::string>();
     int port = config["server.port"].as<std::int32_t>();

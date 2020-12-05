@@ -208,11 +208,13 @@ namespace motoro {
                             client_socket_fd));
 
         std::shared_ptr<meta_data_t> metaData = this->clients[fd];
-        if (this->sid_queue.empty()) {
-            metaData->client.sid = this->sid = ((this->sid + 1) & SIZE_MAX);
-        } else {
-            metaData->client.sid = this->sid_queue.front();
-            this->sid_queue.pop();
+        if (!is_up_server) {
+            if (this->sid_queue.empty()) {
+                metaData->client.sid = this->sid = this->sid + 1;
+            } else {
+                metaData->client.sid = this->sid_queue.front();
+                this->sid_queue.pop();
+            }
         }
         metaData->client.socket_fd = fd;
         this->clients[fd] = metaData;
@@ -223,15 +225,20 @@ namespace motoro {
         if (fd <= 0) {
             return;
         }
-        this->clients[fd]->client.buffer->shrink();
-        this->clients[fd]->client.req.clean();
-        this->clients[fd]->client.res.clean();
+        std::shared_ptr<meta_data_t> temp = this->clients[fd];
+        if (temp == nullptr) {
+            return;
+        }
+        temp->client.buffer->shrink();
+        temp->client.req.clean();
+        temp->client.res.clean();
         this->server_epoll->del(fd);
-        this->sid_queue.push(this->clients.find(fd)->second->client.sid);
+        if (temp->client.sid > 0) {
+            this->sid_queue.push(temp->client.sid);
+        }
         this->clients.erase(fd);
         shutdown(fd, SHUT_RDWR);
         close(fd);
-
         if (this->on_connect_close) {
             this->on_connect_close(fd);
         }

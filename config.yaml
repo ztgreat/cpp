@@ -1,4 +1,4 @@
-server.host: 127.0.0.1
+server.host: 0.0.0.0
 server.port: 10000
 server.buffer.size: 2048
 # TCP 代理，HTTP 代理
@@ -13,7 +13,6 @@ routes:
     # 匹配后提供服务的路由地址
     uri:
       # 不包含协议头
-      - 127.0.0.1:80
       - 127.0.0.1:80
       # 断言，路径相匹配的进行路由
     predicates:
