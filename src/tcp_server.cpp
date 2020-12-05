@@ -327,11 +327,9 @@ namespace motoro {
                         this->del_client(connfd);
                         break;
                     }
-                } else if (errno != EAGAIN) {
-                    std::cout << "accept fail,errno:" << errno << "," << "msg:" << strerror(errno) << std::endl;
-                    continue;
                 }
-            } while (true);
+                std::cout << "accept fail,errno:" << errno << "," << "msg:" << strerror(errno) << std::endl;
+            } while (connfd > 0);
         } else if (event->events & EPOLLIN) {
             if (this->whitelist_inotify && event->data.fd == this->whitelist_inotify->get_fd()) {
                 this->whitelist_inotify->run();
