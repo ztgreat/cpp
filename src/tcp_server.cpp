@@ -19,7 +19,7 @@
 namespace motoro {
 
     std::atomic_bool tcp_server::done(true);
-    int tcp_server::backlog = 511;
+    int tcp_server::backlog = 8192;
     size_t tcp_server::max_connection_limit = 30;
     size_t tcp_server::max_send_limit = 5;
     size_t tcp_server::max_connection_keepalive = 60;
