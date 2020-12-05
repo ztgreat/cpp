@@ -330,9 +330,7 @@ namespace motoro {
                         this->del_client(connfd);
                         break;
                     }
-                    if (count % 5000 == 0) {
-                        std::cout << count << std::endl;
-                    }
+                    std::cout << count << std::endl;
                 } else if (errno != EAGAIN) {
                     std::cout << "accept fail,errno:" << errno << "," << "msg:" << strerror(errno) << std::endl;
                 }
