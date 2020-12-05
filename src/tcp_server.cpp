@@ -223,15 +223,18 @@ namespace motoro {
         if (fd <= 0) {
             return;
         }
-        this->clients[fd]->client.buffer->shrink();
-        this->clients[fd]->client.req.clean();
-        this->clients[fd]->client.res.clean();
+        std::shared_ptr<meta_data_t> temp = this->clients[fd];
+        if (temp == nullptr) {
+            return;
+        }
+        temp->client.buffer->shrink();
+        temp->client.req.clean();
+        temp->client.res.clean();
         this->server_epoll->del(fd);
-        this->sid_queue.push(this->clients.find(fd)->second->client.sid);
+        this->sid_queue.push(temp->client.sid);
         this->clients.erase(fd);
         shutdown(fd, SHUT_RDWR);
         close(fd);
-
         if (this->on_connect_close) {
             this->on_connect_close(fd);
         }
@@ -241,13 +244,14 @@ namespace motoro {
         if (fd <= 0) {
             return;
         }
-        if (this->clients[fd] == nullptr) {
+        std::shared_ptr<meta_data_t> temp = this->clients[fd];
+        if (temp == nullptr) {
             //std::cout << "clean_context:this->clients[fd] is null" << std::endl;
             return;
         }
-        this->clients[fd]->client.buffer->shrink();
-        this->clients[fd]->client.req.clean();
-        this->clients[fd]->client.res.clean();
+        temp->client.buffer->shrink();
+        temp->client.req.clean();
+        temp->client.res.clean();
     }
 
     bool tcp_server::work(int fd, const handler_function &do_work) {
