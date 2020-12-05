@@ -326,6 +326,8 @@ namespace motoro {
                         this->del_client(connfd);
                         break;
                     }
+                } else if (errno != EAGAIN) {
+                    std::cout << "accept fail,errno:" << errno << "," << "msg:" << strerror(errno) << std::endl;
                 }
             } while (connfd > 0);
         } else if (event->events & EPOLLIN) {
